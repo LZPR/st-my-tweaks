@@ -1,6 +1,6 @@
 # ST My Tweaks
 
-ST My Tweaks 是一个 SillyTavern 实用工具包。每个工具都有独立开关，开关状态随 SillyTavern 用户设置保存。当前版本提供扩展面板和工具注册入口，面板会显示「暂无工具」。
+ST My Tweaks 是一个 SillyTavern 实用工具包。每个工具都有独立开关，开关状态随 SillyTavern 用户设置保存。
 
 ## 本地安装
 
@@ -16,6 +16,13 @@ New-Item -ItemType SymbolicLink -Path $link -Target $extension
 Windows 创建符号链接需要启用开发者模式或使用有相应权限的 PowerShell。对于本机目录，也可将命令中的 `SymbolicLink` 换成 `Junction` 来创建目录联接。
 
 安装后刷新 SillyTavern，在「扩展」面板中展开 **ST My Tweaks**。源码由浏览器直接加载，无需安装依赖或运行构建。
+
+## 全屏编辑快捷输入
+
+在 **ST My Tweaks** 中开启「全屏编辑快捷输入」，然后点击编辑框旁的全屏图标。编辑框与「确定」按钮之间会出现 `{{char}}`、`{{user}}` 和 `“”` 三个按钮。
+
+- 宏按钮在光标处插入对应的宏，有选区时替换选中的文字。
+- 引号按钮在光标处插入一对引号，光标留在中间。有选区时包裹整段文字，选区正好带有一对引号或正好选中引号内的全文时去掉这一对。只选中引号内的一部分时，使用另一种引号包裹。
 
 ## 新增工具
 
