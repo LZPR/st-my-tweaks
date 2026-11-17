@@ -1,8 +1,32 @@
+.st-my-tweaks-editor-shortcuts > button {
+    appearance: none;
+    min-height: 36px;
+    padding: 0.25em 0.7em;
+    border: 0;
+    border-radius: 7px;
+    background-color: #303238;
+    color: #e4e5e7;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.st-my-tweaks-editor-shortcuts > button:focus {
+    outline: none;
+}
+
 #send_form > .st-my-tweaks-chat-shortcuts {
     /* The composer row has order: 25 in SillyTavern. */
     order: 24;
+    box-sizing: border-box;
+    padding: 4px 6px 2px;
 }
 
 #send_form:not(:has(> #nonQRFormItems > #send_textarea:focus)) > .st-my-tweaks-chat-shortcuts {
     display: none;
+}
+
+#send_form:has(> .st-my-tweaks-chat-shortcuts):has(#send_textarea:focus-visible) {
+    /* Keep ST's idle border color when the composer gains focus. */
+    --interactable-outline-color-faint: var(--SmartThemeBorderColor);
+    outline: none;
 }

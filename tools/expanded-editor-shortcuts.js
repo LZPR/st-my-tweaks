@@ -128,8 +128,6 @@ function createToolbar(getEditor, config, label) {
     for (const shortcut of ['{{char}}', '{{user}}', '“”']) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'menu_button';
-        button.style.minHeight = '36px';
         button.textContent = shortcut;
         if (shortcut === '“”') {
             button.setAttribute('aria-label', '插入或切换引号');
