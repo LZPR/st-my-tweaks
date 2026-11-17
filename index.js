@@ -2,19 +2,23 @@ import { tools } from './tools/index.js';
 
 const settingsKey = 'st-my-tweaks';
 
-function addToolSwitch(panel, tool, enabled, context) {
+function addToolRow(panel, tool, settings, context) {
     let stop;
+    const getConfig = () => settings.config[tool.id] ?? {};
+    const row = document.createElement('div');
+    row.className = 'flex-container alignitemscenter';
+    row.style.justifyContent = 'space-between';
     const label = document.createElement('label');
     label.className = 'checkbox_label';
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     label.append(checkbox, tool.label);
-    panel.append(label);
+    row.append(label);
 
-    if (enabled[tool.id] === true) {
+    if (settings.enabled[tool.id] === true) {
         try {
-            stop = tool.start(context);
+            stop = tool.start(context, getConfig);
             checkbox.checked = true;
         } catch (error) {
             console.error(`[ST My Tweaks] Failed to start ${tool.id}`, error);
@@ -24,7 +28,7 @@ function addToolSwitch(panel, tool, enabled, context) {
     checkbox.addEventListener('change', () => {
         try {
             if (checkbox.checked) {
-                stop = tool.start(context);
+                stop = tool.start(context, getConfig);
             } else {
                 stop();
                 stop = undefined;
@@ -35,9 +39,57 @@ function addToolSwitch(panel, tool, enabled, context) {
             return;
         }
 
-        enabled[tool.id] = checkbox.checked;
+        settings.enabled[tool.id] = checkbox.checked;
         context.saveSettingsDebounced();
     });
+
+    if (tool.renderSettings) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'menu_button menu_button_icon';
+        button.title = `配置${tool.label}`;
+        button.setAttribute('aria-haspopup', 'dialog');
+
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-gear';
+        icon.setAttribute('aria-hidden', 'true');
+        button.append(icon, '设置');
+
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            try {
+                const draft = structuredClone(getConfig());
+                const content = document.createElement('div');
+                const heading = document.createElement('h3');
+                heading.textContent = tool.label;
+                const canvas = document.createElement('div');
+                content.append(heading, canvas);
+                tool.renderSettings(canvas, draft);
+
+                const result = await context.callGenericPopup(content, context.POPUP_TYPE.CONFIRM, '', {
+                    okButton: '保存',
+                    cancelButton: '取消',
+                    leftAlign: true,
+                    allowVerticalScrolling: true,
+                });
+                if (result === context.POPUP_RESULT.AFFIRMATIVE) {
+                    settings.config[tool.id] = draft;
+                    context.saveSettingsDebounced();
+                    if (stop) {
+                        tool.onSettingsChanged?.(draft);
+                    }
+                }
+            } catch (error) {
+                console.error(`[ST My Tweaks] Failed to configure ${tool.id}`, error);
+            } finally {
+                button.disabled = false;
+                button.focus({ preventScroll: true });
+            }
+        });
+        row.append(button);
+    }
+
+    panel.append(row);
 }
 
 function init() {
@@ -49,25 +101,49 @@ function init() {
 
     const context = SillyTavern.getContext();
     const settings = context.extensionSettings[settingsKey] ??= {};
-    const enabled = settings.enabled ??= {};
+    settings.enabled ??= {};
+    settings.config ??= {};
 
-    const panel = document.createElement('details');
+    const panel = document.createElement('div');
     panel.id = panelId;
-    panel.className = 'extension_container';
+    panel.className = 'inline-drawer';
 
-    const heading = document.createElement('summary');
+    const header = document.createElement('div');
+    header.className = 'inline-drawer-toggle inline-drawer-header';
+    header.tabIndex = 0;
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', `${panelId}-content`);
+    header.addEventListener('click', () => {
+        header.setAttribute('aria-expanded', String(header.getAttribute('aria-expanded') === 'false'));
+    });
+    header.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            header.click();
+        }
+    });
+    const heading = document.createElement('strong');
     heading.textContent = 'ST My Tweaks';
-    panel.append(heading);
+    const icon = document.createElement('div');
+    icon.className = 'inline-drawer-icon fa-solid fa-circle-chevron-down down';
+    icon.setAttribute('aria-hidden', 'true');
+    header.append(heading, icon);
+
+    const content = document.createElement('div');
+    content.className = 'inline-drawer-content';
+    content.id = `${panelId}-content`;
+    panel.append(header, content);
 
     if (tools.length === 0) {
         const empty = document.createElement('p');
         empty.textContent = '暂无工具';
-        panel.append(empty);
+        content.append(empty);
     }
 
     container.append(panel);
     for (const tool of tools) {
-        addToolSwitch(panel, tool, enabled, context);
+        addToolRow(content, tool, settings, context);
     }
 }
 

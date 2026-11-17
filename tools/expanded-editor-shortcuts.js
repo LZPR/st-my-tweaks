@@ -1,5 +1,8 @@
 const editorSelector = 'textarea.maximized_textarea';
 const toolbarClass = 'st-my-tweaks-editor-shortcuts';
+const alignments = new Map([['left', '左对齐'], ['center', '居中'], ['right', '右对齐']]);
+const minScale = 75;
+const maxScale = 150;
 const doubleQuotes = ['“', '”'];
 const singleQuotes = ['‘', '’'];
 const closingQuotes = new Map([['“', '”'], ['‘', '’'], ['"', '"'], ["'", "'"]]);
@@ -60,14 +63,65 @@ function toggleQuotes(editor) {
     replaceRange(editor, start, end, open + value.slice(start, end) + close, start + 1, end + 1);
 }
 
-function addToolbar(editor) {
+function getScale(config) {
+    const { scale } = config;
+    return Number.isFinite(scale) && scale >= minScale && scale <= maxScale ? scale : 100;
+}
+
+function applyToolbarSettings(toolbar, config) {
+    toolbar.style.justifyContent = alignments.has(config.alignment) ? config.alignment : 'center';
+    for (const button of toolbar.children) {
+        button.style.zoom = `${getScale(config)}%`;
+    }
+}
+
+function renderSettings(canvas, config) {
+    canvas.classList.add('flex-container', 'flexFlowColumn');
+
+    const alignmentLabel = document.createElement('label');
+    alignmentLabel.className = 'flex-container flexFlowColumn';
+    const alignment = document.createElement('select');
+    alignment.className = 'text_pole';
+    for (const [value, text] of alignments) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        alignment.append(option);
+    }
+    alignment.value = alignments.has(config.alignment) ? config.alignment : 'center';
+    alignment.addEventListener('change', () => { config.alignment = alignment.value; });
+    alignmentLabel.append('快捷栏对齐', alignment);
+
+    const scaleLabel = document.createElement('label');
+    scaleLabel.className = 'flex-container flexFlowColumn';
+    const scaleText = document.createElement('span');
+    const scale = document.createElement('input');
+    scale.type = 'range';
+    scale.min = String(minScale);
+    scale.max = String(maxScale);
+    scale.step = '5';
+    scale.value = String(getScale(config));
+    scaleText.textContent = `按钮缩放 ${scale.value}%`;
+    scale.setAttribute('aria-valuetext', `${scale.value}%`);
+    scale.addEventListener('input', () => {
+        config.scale = scale.valueAsNumber;
+        scaleText.textContent = `按钮缩放 ${scale.value}%`;
+        scale.setAttribute('aria-valuetext', `${scale.value}%`);
+    });
+    scaleLabel.append(scaleText, scale);
+    canvas.append(alignmentLabel, scaleLabel);
+}
+
+function addToolbar(editor, config) {
     if (!editor.isConnected || editor.nextElementSibling?.classList.contains(toolbarClass)) {
         return;
     }
 
     const toolbar = document.createElement('div');
-    toolbar.className = `flex-container ${toolbarClass}`;
+    toolbar.className = `flex-container wide100p ${toolbarClass}`;
     toolbar.style.flex = '0 0 auto';
+    toolbar.style.flexWrap = 'wrap';
+    toolbar.style.direction = 'ltr';
     toolbar.setAttribute('role', 'group');
     toolbar.setAttribute('aria-label', '全屏编辑快捷输入');
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
@@ -91,13 +145,19 @@ function addToolbar(editor) {
         toolbar.append(button);
     }
 
+    applyToolbarSettings(toolbar, config);
     editor.after(toolbar);
 }
 
 export const expandedEditorShortcuts = {
     id: 'expanded-editor-shortcuts',
     label: '全屏编辑快捷输入',
-    start() {
+    renderSettings,
+    onSettingsChanged(config) {
+        document.querySelectorAll(`.${toolbarClass}`).forEach(toolbar => applyToolbarSettings(toolbar, config));
+    },
+    start(_context, getConfig) {
+        const mountToolbar = editor => addToolbar(editor, getConfig());
         const observer = new MutationObserver(records => {
             for (const { addedNodes } of records) {
                 for (const node of addedNodes) {
@@ -105,14 +165,14 @@ export const expandedEditorShortcuts = {
                         continue;
                     }
                     if (node.matches(editorSelector)) {
-                        addToolbar(node);
+                        mountToolbar(node);
                     }
-                    node.querySelectorAll(editorSelector).forEach(addToolbar);
+                    node.querySelectorAll(editorSelector).forEach(mountToolbar);
                 }
             }
         });
 
-        document.querySelectorAll(editorSelector).forEach(addToolbar);
+        document.querySelectorAll(editorSelector).forEach(mountToolbar);
         observer.observe(document.body, { childList: true, subtree: true });
 
         return () => {
