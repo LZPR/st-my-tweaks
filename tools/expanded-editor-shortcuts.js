@@ -1,5 +1,7 @@
-const editorSelector = 'textarea.maximized_textarea';
+const chatEditorSelector = 'textarea#send_textarea';
+const editorSelector = `textarea.maximized_textarea, ${chatEditorSelector}`;
 const toolbarClass = 'st-my-tweaks-editor-shortcuts';
+const chatToolbarClass = 'st-my-tweaks-chat-shortcuts';
 const alignments = new Map([['left', '左对齐'], ['center', '居中'], ['right', '右对齐']]);
 const minScale = 75;
 const maxScale = 150;
@@ -112,46 +114,73 @@ function renderSettings(canvas, config) {
     canvas.append(alignmentLabel, scaleLabel);
 }
 
-function addToolbar(editor, config) {
-    if (!editor.isConnected || editor.nextElementSibling?.classList.contains(toolbarClass)) {
-        return;
-    }
-
+function createToolbar(getEditor, config, label) {
     const toolbar = document.createElement('div');
     toolbar.className = `flex-container wide100p ${toolbarClass}`;
     toolbar.style.flex = '0 0 auto';
     toolbar.style.flexWrap = 'wrap';
     toolbar.style.direction = 'ltr';
     toolbar.setAttribute('role', 'group');
-    toolbar.setAttribute('aria-label', '全屏编辑快捷输入');
+    toolbar.setAttribute('aria-label', label);
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
-    toolbar.addEventListener('mousedown', event => event.preventDefault());
+    toolbar.addEventListener('pointerdown', event => event.preventDefault());
 
-    for (const label of ['{{char}}', '{{user}}', '“”']) {
+    for (const shortcut of ['{{char}}', '{{user}}', '“”']) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'menu_button';
         button.style.minHeight = '36px';
-        button.textContent = label;
-        if (label === '“”') {
+        button.textContent = shortcut;
+        if (shortcut === '“”') {
             button.setAttribute('aria-label', '插入或切换引号');
-            button.addEventListener('click', () => toggleQuotes(editor));
-        } else {
-            button.addEventListener('click', () => {
-                const { selectionStart: start, selectionEnd: end } = editor;
-                replaceRange(editor, start, end, label, start + label.length);
-            });
         }
+        button.addEventListener('click', () => {
+            const editor = getEditor();
+            if (!editor) {
+                return;
+            }
+            if (shortcut === '“”') {
+                toggleQuotes(editor);
+            } else {
+                const { selectionStart: start, selectionEnd: end } = editor;
+                replaceRange(editor, start, end, shortcut, start + shortcut.length);
+            }
+        });
         toolbar.append(button);
     }
 
     applyToolbarSettings(toolbar, config);
-    editor.after(toolbar);
+    return toolbar;
+}
+
+function addToolbar(editor, config) {
+    if (!editor.isConnected) {
+        return;
+    }
+
+    if (editor.matches(chatEditorSelector)) {
+        const row = editor.closest('#send_form > #nonQRFormItems');
+        const form = row?.parentElement;
+        if (!form || form.querySelector(`:scope > .${chatToolbarClass}`)) {
+            return;
+        }
+
+        const getChatEditor = () => form.querySelector(`:scope > #nonQRFormItems > ${chatEditorSelector}`);
+        const toolbar = createToolbar(getChatEditor, config, '聊天快捷输入');
+        toolbar.classList.add(chatToolbarClass);
+        // Tabbing away should leave the composer without focusing a control that then disappears.
+        for (const button of toolbar.children) {
+            button.tabIndex = -1;
+        }
+        row.before(toolbar);
+    } else if (!editor.nextElementSibling?.classList.contains(toolbarClass)) {
+        editor.after(createToolbar(() => editor, config, '全屏编辑快捷输入'));
+    }
 }
 
 export const expandedEditorShortcuts = {
     id: 'expanded-editor-shortcuts',
-    label: '全屏编辑快捷输入',
+    label: '编辑快捷输入',
     renderSettings,
     onSettingsChanged(config) {
         document.querySelectorAll(`.${toolbarClass}`).forEach(toolbar => applyToolbarSettings(toolbar, config));

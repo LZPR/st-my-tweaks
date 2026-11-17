@@ -1,0 +1,8 @@
+#send_form > .st-my-tweaks-chat-shortcuts {
+    /* The composer row has order: 25 in SillyTavern. */
+    order: 24;
+}
+
+#send_form:not(:has(> #nonQRFormItems > #send_textarea:focus)) > .st-my-tweaks-chat-shortcuts {
+    display: none;
+}
