@@ -30,3 +30,52 @@
     --interactable-outline-color-faint: var(--SmartThemeBorderColor);
     outline: none;
 }
+
+.st-my-tweaks-prompt-history {
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    width: 100%;
+    padding-inline: 4px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px 5px 0 0;
+    background-color: var(--black30a);
+    color: var(--SmartThemeBodyColor);
+    font-size: calc(var(--mainFontSize, 1rem) * var(--st-my-tweaks-prompt-history-scale, 1));
+}
+
+.flex-container.flexFlowColumn:not(.flexNoGap) > .st-my-tweaks-prompt-history {
+    margin-bottom: -5px;
+}
+
+.st-my-tweaks-prompt-history + textarea {
+    margin-top: 0;
+    border-top: 0;
+    border-radius: 0 0 5px 5px;
+}
+
+.st-my-tweaks-prompt-history > button {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    min-width: 2.5em;
+    min-height: 1.2em;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: inherit;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.st-my-tweaks-prompt-history > button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.st-my-tweaks-prompt-history > button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -3px;
+}

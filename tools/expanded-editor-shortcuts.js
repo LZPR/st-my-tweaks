@@ -1,10 +1,10 @@
+import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
+
 const chatEditorSelector = 'textarea#send_textarea';
 const editorSelector = `textarea.maximized_textarea, ${chatEditorSelector}`;
 const toolbarClass = 'st-my-tweaks-editor-shortcuts';
 const chatToolbarClass = 'st-my-tweaks-chat-shortcuts';
 const alignments = new Map([['left', '左对齐'], ['center', '居中'], ['right', '右对齐']]);
-const minScale = 75;
-const maxScale = 150;
 const doubleQuotes = ['“', '”'];
 const singleQuotes = ['‘', '’'];
 const closingQuotes = new Map([['“', '”'], ['‘', '’'], ['"', '"'], ["'", "'"]]);
@@ -65,15 +65,10 @@ function toggleQuotes(editor) {
     replaceRange(editor, start, end, open + value.slice(start, end) + close, start + 1, end + 1);
 }
 
-function getScale(config) {
-    const { scale } = config;
-    return Number.isFinite(scale) && scale >= minScale && scale <= maxScale ? scale : 100;
-}
-
 function applyToolbarSettings(toolbar, config) {
     toolbar.style.justifyContent = alignments.has(config.alignment) ? config.alignment : 'center';
     for (const button of toolbar.children) {
-        button.style.zoom = `${getScale(config)}%`;
+        button.style.zoom = `${getToolbarScale(config)}%`;
     }
 }
 
@@ -94,24 +89,7 @@ function renderSettings(canvas, config) {
     alignment.addEventListener('change', () => { config.alignment = alignment.value; });
     alignmentLabel.append('快捷栏对齐', alignment);
 
-    const scaleLabel = document.createElement('label');
-    scaleLabel.className = 'flex-container flexFlowColumn';
-    const scaleText = document.createElement('span');
-    const scale = document.createElement('input');
-    scale.type = 'range';
-    scale.min = String(minScale);
-    scale.max = String(maxScale);
-    scale.step = '5';
-    scale.value = String(getScale(config));
-    scaleText.textContent = `按钮缩放 ${scale.value}%`;
-    scale.setAttribute('aria-valuetext', `${scale.value}%`);
-    scale.addEventListener('input', () => {
-        config.scale = scale.valueAsNumber;
-        scaleText.textContent = `按钮缩放 ${scale.value}%`;
-        scale.setAttribute('aria-valuetext', `${scale.value}%`);
-    });
-    scaleLabel.append(scaleText, scale);
-    canvas.append(alignmentLabel, scaleLabel);
+    canvas.append(alignmentLabel, createToolbarScaleSetting(config, '按钮缩放'));
 }
 
 function createToolbar(getEditor, config, label) {
