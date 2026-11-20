@@ -55,6 +55,10 @@
     border-radius: 0 0 5px 5px;
 }
 
+.st-my-tweaks-prompt-history:has(+ textarea:disabled) {
+    display: none;
+}
+
 .st-my-tweaks-prompt-history > button {
     appearance: none;
     display: grid;

@@ -1,5 +1,29 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
 
+const quickPromptSelector = '#ai_response_configuration textarea[data-pm-prompt]';
+const promptManagerEditorSelector = 'textarea#completion_prompt_manager_popup_entry_form_prompt';
+const responsePresetSelectors = new Map([
+    ['openai', [
+        quickPromptSelector,
+        promptManagerEditorSelector,
+        ...[
+            'impersonation_prompt_textarea',
+            'wi_format_textarea',
+            'scenario_format_textarea',
+            'personality_format_textarea',
+            'group_nudge_prompt_textarea',
+            'newchat_prompt_textarea',
+            'newgroupchat_prompt_textarea',
+            'newexamplechat_prompt_textarea',
+            'continue_nudge_prompt_textarea',
+            'send_if_empty_textarea',
+            'claude_assistant_prefill',
+            'claude_assistant_impersonation',
+        ].map(id => `#ai_response_configuration textarea#${id}`),
+    ].join(', ')],
+    ['novel', '#ai_response_configuration textarea#nai_preamble_textarea'],
+    ['textgenerationwebui', '#ai_response_configuration textarea#negative_prompt_textgenerationwebui'],
+]);
 const locations = [
     {
         id: 'character',
@@ -25,6 +49,11 @@ const locations = [
         id: 'worldInfo',
         label: '世界书',
         selector: '#world_popup_entries_list .world_entry textarea[name="content"]',
+    },
+    {
+        id: 'aiResponse',
+        label: 'AI 响应配置',
+        selector: [...responsePresetSelectors.values()].join(', '),
     },
 ];
 const expandedSelector = 'textarea.maximized_textarea[data-for]';
@@ -136,6 +165,10 @@ function applyAction(history, editor, action) {
     editor.value = next.value;
     editor.setSelectionRange(next.start, next.end, next.direction);
     editor.dispatchEvent(new Event('input', { bubbles: true }));
+    // ST saves Quick Prompts on blur. An unfocused source has no later blur event.
+    if (history.source.matches(quickPromptSelector) && document.activeElement !== history.source) {
+        history.source.dispatchEvent(new FocusEvent('blur'));
+    }
     updateViews(history);
 }
 
@@ -298,21 +331,41 @@ export const promptEditHistory = {
         };
         const onCharacterOpened = () => rebaseLocation('character');
         const onPersonaChanged = () => rebaseLocation('persona');
+        const onPresetChanged = ({ apiId } = {}) => {
+            const selector = responsePresetSelectors.get(apiId);
+            if (!selector) {
+                return;
+            }
+            for (const [source, history] of histories) {
+                if (source.matches(selector)) {
+                    rebase(history);
+                }
+            }
+        };
         const eventSource = context.eventSource;
         const events = context.eventTypes ?? context.event_types;
         const subscriptions = [
             [events?.CHARACTER_EDITOR_OPENED, onCharacterOpened],
             [events?.PERSONA_CHANGED, onPersonaChanged],
+            [events?.PRESET_CHANGED, onPresetChanged],
         ].filter(([event]) => event);
         for (const [event, listener] of subscriptions) {
             eventSource.on(event, listener);
         }
 
         const characterForm = document.getElementById('form_create');
+        const promptManagerForm = document.getElementById('completion_prompt_manager_popup_edit');
         const observer = new MutationObserver(records => {
             if (characterForm?.getAttribute('actiontype') === 'createcharacter'
                 && records.some(record => record.target === characterForm && record.type === 'attributes')) {
                 onCharacterOpened();
+            }
+            // The Prompt Manager reuses one textarea for different prompt entries.
+            if (records.some(record => record.target === promptManagerForm && record.type === 'attributes')) {
+                const history = histories.get(promptManagerForm.querySelector(promptManagerEditorSelector));
+                if (history) {
+                    rebase(history);
+                }
             }
             if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node =>
                 node instanceof Element && (node.matches(editorSelector) || node.querySelector(editorSelector))))) {
@@ -322,6 +375,9 @@ export const promptEditHistory = {
         observer.observe(document.body, { childList: true, subtree: true });
         if (characterForm) {
             observer.observe(characterForm, { attributes: true, attributeFilter: ['actiontype'] });
+        }
+        if (promptManagerForm) {
+            observer.observe(promptManagerForm, { attributes: true, attributeFilter: ['style'] });
         }
 
         // ST swaps the values of two existing editors when moving an alternate greeting.
