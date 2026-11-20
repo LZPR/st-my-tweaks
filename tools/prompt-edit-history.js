@@ -30,6 +30,8 @@ const locations = [
 const expandedSelector = 'textarea.maximized_textarea[data-for]';
 const editorSelector = [...locations.map(location => location.selector), expandedSelector].join(', ');
 const maxUndoSteps = 100;
+const deletionGroupDelay = 750;
+const groupedDeletionTypes = new Set(['deleteContentBackward', 'deleteContentForward', 'deleteWordBackward', 'deleteWordForward']);
 const actions = [
     { id: 'undo', label: '撤销', icon: 'fa-rotate-left' },
     { id: 'redo', label: '还原', icon: 'fa-rotate-right' },
@@ -63,6 +65,7 @@ function rebase(history) {
     history.undo.length = 0;
     history.redo.length = 0;
     history.composing = null;
+    history.lastDeletion = null;
     updateViews(history);
 }
 
@@ -79,10 +82,21 @@ function pushUndo(history) {
     }
 }
 
-function rememberChange(history, editor) {
-    if (editor.value !== history.current.value) {
-        pushUndo(history);
-        history.current = snapshot(editor);
+function rememberChange(history, editor, event) {
+    const { current, lastDeletion } = history;
+    if (editor.value !== current.value) {
+        const next = snapshot(editor);
+        const inputType = event?.inputType;
+        const isCaretDeletion = groupedDeletionTypes.has(inputType) && current.start === current.end && next.start === next.end;
+        const continuesDeletion = isCaretDeletion && lastDeletion?.editor === editor && lastDeletion.inputType === inputType
+            && lastDeletion.caret === current.start && event.timeStamp - lastDeletion.time <= deletionGroupDelay;
+        if (!continuesDeletion) {
+            pushUndo(history);
+        }
+        history.lastDeletion = isCaretDeletion
+            ? { editor, inputType, caret: next.start, time: event.timeStamp }
+            : null;
+        history.current = next;
         history.redo.length = 0;
     }
     updateViews(history);
@@ -94,6 +108,7 @@ function applyAction(history, editor, action) {
         return;
     }
 
+    history.lastDeletion = null;
     const { current, initial, undo, redo } = history;
     let next;
     switch (action) {
@@ -149,7 +164,10 @@ function attachView(history, editor) {
     }
     editor.before(toolbar);
 
+    const endDeletion = () => { history.lastDeletion = null; };
     editor.addEventListener('focus', () => syncSource(history), options);
+    editor.addEventListener('blur', endDeletion, options);
+    editor.addEventListener('pointerdown', endDeletion, options);
     editor.addEventListener('beforeinput', event => {
         if (history.composing || event.isComposing) {
             return;
@@ -175,6 +193,7 @@ function attachView(history, editor) {
         }
     }, options);
     editor.addEventListener('compositionstart', () => {
+        endDeletion();
         syncSource(history);
         history.current = snapshot(editor);
         history.composing = editor;
@@ -186,7 +205,7 @@ function attachView(history, editor) {
     }, options);
     editor.addEventListener('input', event => {
         if (!history.composing && !event.isComposing) {
-            rememberChange(history, editor);
+            rememberChange(history, editor, event);
         }
     }, options);
 
@@ -194,6 +213,9 @@ function attachView(history, editor) {
         toolbar,
         buttons,
         remove() {
+            if (history.lastDeletion?.editor === editor) {
+                endDeletion();
+            }
             listeners.abort();
             toolbar.remove();
         },
@@ -260,7 +282,7 @@ export const promptEditHistory = {
                     const initial = snapshot(source);
                     histories.set(source, {
                         source, location, initial, current: initial,
-                        undo: [], redo: [], views: new Map(), composing: null,
+                        undo: [], redo: [], views: new Map(), composing: null, lastDeletion: null,
                     });
                 }
                 const history = histories.get(source);
