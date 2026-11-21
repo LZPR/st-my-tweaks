@@ -338,6 +338,11 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 .st-plist .pl-add-row { padding: .7em .45em 0; }
 .st-plist .pl-add-row select { color: inherit; }
 
+@container (width > 29em) {
+    .st-plist .pl-name-cell { display: contents; }
+    .st-plist .pl-name-cell > small { grid-column: 1 / -1; margin-bottom: .15em; }
+}
+
 @container (max-width: 29em) {
     .st-plist .pl-columns { display: none; }
     .st-plist .pl-row { grid-template-columns: minmax(0, 1fr) 2em; row-gap: .55em; }
