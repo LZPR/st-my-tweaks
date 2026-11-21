@@ -363,6 +363,14 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 
 .st-my-tweaks-plist-button { margin-inline-end: auto; }
 
+.pl-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45em;
+    margin-block: .65em;
+}
+.pl-library-actions > .menu_button { width: auto; white-space: nowrap; }
+
 .st-plist .pl-icon[aria-pressed="true"],
 .st-plist .pl-sort .pl-picked {
     background: var(--pl-accent);

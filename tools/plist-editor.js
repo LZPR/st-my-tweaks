@@ -1,7 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
-import { getPresets } from './plist-presets.js';
+import { defaults, getPresets } from './plist-presets.js';
 
 let refreshTool;
 let nextParameterEdit = 0;
@@ -522,19 +522,77 @@ export const plistEditor = {
             prefixFields.push(input);
         }
         canvas.append(prefixSettings);
-        canvas.append(element('h4', '常用属性与参数'));
+        const library = element('details');
+        library.append(element('summary', '常用属性与参数'));
+        const actions = box('pl-library-actions');
         const section = box('st-plist');
-        canvas.append(section);
-        const { read } = rowList(section, getPresets(config));
+        const file = element('input');
+        file.type = 'file';
+        file.accept = '.json,application/json';
+        file.hidden = true;
+        let read, revision = 0, loading = false;
+        function replaceLibrary(rows) {
+            section.replaceChildren();
+            read = rowList(section, rows).read;
+        }
+        file.addEventListener('change', async () => {
+            const selected = file.files[0];
+            if (!selected) return;
+            const current = ++revision;
+            file.value = '';
+            loading = true;
+            try {
+                const rows = JSON.parse((await selected.text()).replace(/^\uFEFF/u, ''));
+                if (current !== revision) return;
+                if (!Array.isArray(rows) || !rows.every(row =>
+                    typeof row?.name === 'string' && row.name.trim() && !/[:：=;；\[\]\r\n]/u.test(maskMacros(row.name))
+                    && splitTraits(row.name) && typeof row.value === 'string' && row.value.trim()
+                    && !/[\[\]]/u.test(maskMacros(row.value)) && splitTraits(row.value, ';；')?.length === 1
+                    && splitTraits(row.value)?.every(item => item.trim()))) {
+                    throw new Error();
+                }
+                replaceLibrary(rows.map(({ name, value }) => ({ name, value })));
+                toastr.success('词库已导入，保存后生效。');
+            } catch {
+                if (current === revision) toastr.error('导入失败，请选择有效的 PLists 词库 JSON 文件。');
+            } finally {
+                if (current === revision) loading = false;
+            }
+        });
+        actions.append(action('导入 JSON', () => file.click()), action('导出 JSON', () => {
+            const rows = read();
+            if (!rows) return;
+            const url = URL.createObjectURL(new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }));
+            const link = element('a');
+            link.href = url;
+            link.download = 'plists-presets.json';
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }), action('恢复默认', () => {
+            revision++;
+            loading = false;
+            replaceLibrary(defaults);
+            toastr.success('默认词库已载入，保存后生效。');
+        }));
+        library.append(actions, file, section);
+        canvas.append(library);
+        replaceLibrary(getPresets(config));
         return () => {
+            if (loading) {
+                toastr.info('正在读取词库文件，请稍后保存。');
+                return false;
+            }
             for (const input of prefixFields) {
                 if (/[:：=;；\[\]]/u.test(maskMacros(input.value)) || splitTraits(input.value) === null) {
                     prefixSettings.open = true;
                     return invalid(input, '请配对括号，并避开属性分隔符和方括号。');
                 }
             }
+            const wasOpen = library.open;
+            library.open = true;
             const presets = read();
             if (!presets) return false;
+            library.open = wasOpen;
             config.presets = presets;
             return true;
         };
