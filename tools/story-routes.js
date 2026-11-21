@@ -98,7 +98,7 @@ let settingsChanged;
 function start(context, getConfig) {
     const config = () => ({ ...defaults, ...getConfig() });
     let session = newSession();
-    let popup, panel, editor;
+    let popup, panel, list, editor;
     let enabled = true;
 
     function isCurrent(target) {
@@ -168,15 +168,19 @@ function start(context, getConfig) {
 
     function edit(route) {
         const target = session;
+        const card = document.createElement('div');
+        card.className = 'st-my-tweaks-route is-editing';
+        editor = { route, card };
         const field = document.createElement('textarea');
+        field.id = 'stmt-route-body-editor';
         field.className = 'text_pole';
         field.rows = 4;
         field.value = route?.text ?? '';
         field.setAttribute('aria-label', route ? '编辑路线' : '新建自定义路线');
-        editor = document.createElement('div');
-        const heading = document.createElement('h3');
-        heading.textContent = field.getAttribute('aria-label');
-        editor.append(heading, field, actions(button('保存路线', () => {
+        const expand = iconButton('全屏编辑路线正文', 'fa-expand');
+        expand.classList.add('editor_maximize');
+        expand.dataset.for = field.id;
+        card.append(field, actions(expand, button('保存', () => {
             if (!isCurrent(target)) return;
             const text = field.value.trim();
             if (!text) {
@@ -187,18 +191,15 @@ function start(context, getConfig) {
             if (route) route.text = text;
             else target.custom = { text };
             editor = null;
-            update();
-        }, 'fa-check'), button('取消编辑', () => { editor = null; render(); })));
+            syncPrompt();
+            render(route ?? target.custom);
+        }, 'fa-check'), button('取消', () => { editor = null; render(route); })));
         render();
         field.focus();
     }
 
     function render(focusRoute) {
         if (!panel) return;
-        if (editor) {
-            if (editor.parentElement !== panel) panel.replaceChildren(editor);
-            return;
-        }
         const target = session;
         const heading = document.createElement('h3');
         heading.textContent = '对话发展路线';
@@ -206,20 +207,32 @@ function start(context, getConfig) {
         status.setAttribute('role', 'status');
         status.textContent = target.pending ? '正在根据当前对话生成路线…' : target.notice;
         const refresh = button('换一批', generate, 'fa-rotate');
-        refresh.disabled = target.pending;
+        refresh.disabled = target.pending || !!editor;
         const bar = actions(refresh);
-        if (!target.custom) bar.append(button('自建路线', () => edit(null), 'fa-plus'));
+        if (!target.custom) {
+            const create = button('自建路线', () => edit(null), 'fa-plus');
+            create.disabled = !!editor;
+            bar.append(create);
+        }
         const header = document.createElement('div');
         header.className = 'stmt-route-header';
         header.append(heading, bar);
-        const list = document.createElement('div');
-        list.className = 'stmt-route-list';
-        panel.replaceChildren(header, status, list);
+        panel.firstElementChild.replaceChildren(header, status);
+        // Keep the draft attached, including while ST's maximized editor writes into it.
+        for (const child of [...list.children]) {
+            if (child !== editor?.card) child.remove();
+        }
         const routes = [...target.routes];
         if (target.custom) routes.unshift(target.custom);
         if (target.selected && !routes.includes(target.selected)) routes.unshift(target.selected);
-        for (const route of routes) {
+        if (editor && !routes.includes(editor.route)) routes.unshift(editor.route);
+        for (const [index, route] of routes.entries()) {
             const active = route === target.selected;
+            if (editor && route === editor.route) {
+                editor.card.classList.toggle('is-selected', !!route && active);
+                if (!editor.card.isConnected) list.insertBefore(editor.card, list.children[index] ?? null);
+                continue;
+            }
             const card = document.createElement('div');
             card.className = 'st-my-tweaks-route';
             card.classList.toggle('is-selected', active);
@@ -239,9 +252,9 @@ function start(context, getConfig) {
             }
             const change = iconButton('编辑路线', 'fa-pen', () => edit(route));
             change.classList.add('stmt-route-edit');
-            change.disabled = target.pending && route !== target.custom;
+            change.disabled = !!editor || (target.pending && route !== target.custom);
             card.append(select, change);
-            list.append(card);
+            list.insertBefore(card, list.children[index] ?? null);
             if (route === focusRoute) select.focus({ preventScroll: true });
         }
     }
@@ -253,7 +266,7 @@ function start(context, getConfig) {
 
     function close() {
         const current = popup;
-        popup = panel = editor = null;
+        popup = panel = list = editor = null;
         if (current) void current.completeCancelled();
     }
 
@@ -272,6 +285,9 @@ function start(context, getConfig) {
         }
         panel = document.createElement('div');
         panel.className = 'stmt-routes';
+        list = document.createElement('div');
+        list.className = 'stmt-route-list';
+        panel.append(document.createElement('div'), list);
         const current = new context.Popup(panel, context.POPUP_TYPE.TEXT, '', {
             okButton: '关闭', leftAlign: true, allowVerticalScrolling: true,
         });
@@ -282,7 +298,7 @@ function start(context, getConfig) {
         try {
             await closed;
         } finally {
-            if (popup === current) popup = panel = editor = null;
+            if (popup === current) popup = panel = list = editor = null;
         }
     }
 
