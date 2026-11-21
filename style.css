@@ -267,6 +267,7 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 
 .st-plist .pl-icon:hover { background: var(--pl-surface); border-color: var(--pl-line); }
 .st-plist .pl-navigation .pl-icon { border-color: var(--pl-line); }
+.st-plist .pl-navigation .pl-icon:disabled { opacity: .35; cursor: default; }
 
 .st-plist .pl-columns, .st-plist .pl-row {
     display: grid;

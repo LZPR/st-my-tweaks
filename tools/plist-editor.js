@@ -7,6 +7,7 @@ const defaults = [
     { name: '性格', value: '活泼, 腼腆, 温和, 冷静' },
 ];
 let refreshTool;
+let nextParameterEdit = 0;
 const windowSizes = [70, 85, 95, 100];
 const defaultPrefixes = { character: "{{char}}'s ", persona: "{{user}}'s " };
 
@@ -38,6 +39,8 @@ const paths = {
     remove: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7',
     done: 'm5 12 4 4L19 6',
     close: 'm6 6 12 12M6 18 18 6',
+    undo: 'M9 4 3 10l6 6M3 10h11a6 6 0 0 1 0 12',
+    redo: 'm15 4 6 6-6 6m6-6H10a6 6 0 0 0 0 12',
 };
 
 function iconButton(label, icon, run) {
@@ -96,14 +99,14 @@ function enclose(value, end) {
     return (end === '”' ? '“' : '"') + value.replaceAll('\\', '\\\\').replaceAll(end, '\\' + end) + end;
 }
 
-function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle) {
+function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle, changed, signal) {
     const header = box('pl-columns');
     header.append(element('span', '属性'), element('span', '参数'));
     const list = box('pl-rows');
     const rows = [];
     let pending;
     const finish = () => !pending || pending();
-    function add({ name = '', value = '' } = {}, appliedPrefix = '') {
+    function add({ name = '', value = '', draft } = {}, appliedPrefix = '') {
         const line = box('pl-row');
         const keyBox = box('pl-key');
         const key = element('textarea');
@@ -117,6 +120,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const measureKey = () => { measure.textContent = key.value + ' '; };
         measureKey();
         key.addEventListener('input', measureKey);
+        key.addEventListener('input', () => changed?.('name-' + rows.indexOf(row)));
         keyBox.append(measure, key);
         const nameCell = box('pl-name-cell');
         if (appliedPrefix) nameCell.append(element('small', appliedPrefix));
@@ -132,7 +136,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             ? value : items.join(', ') };
         rows.push(row);
 
-        function inspect(index) {
+        function inspect(index, restoredDraft) {
             if (!finish()) return;
             index ??= items.length;
             const editing = index < items.length;
@@ -151,11 +155,19 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             input.setAttribute('aria-label', '参数内容');
             const close = () => {
                 pending = undefined;
+                row.draft = undefined;
                 refreshDrawer = undefined;
                 drawer.hidden = true;
                 drawer.replaceChildren();
                 paint();
             };
+            const group = restoredDraft?.group ?? ++nextParameterEdit;
+            const originalRaw = raw;
+            row.draft = () => {
+                const text = rawInput();
+                return text === originalRaw ? undefined : { index, text, group };
+            };
+            input.addEventListener('input', () => changed?.(group));
             const commit = () => {
                 let next = rawInput();
                 if (!next && editing) return invalid(input, '请输入参数，或点击删除图标。');
@@ -164,6 +176,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 if (splitTraits(next).length > 1) next = enclose(next, '"');
                 if (next) items[index] = next;
                 close();
+                changed?.(group);
                 return true;
             };
             pending = commit;
@@ -174,9 +187,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             if (editing) drawer.append(iconButton('删除参数', 'remove', () => {
                 items.splice(index, 1);
                 close();
+                changed?.(group);
                 chips.children[Math.min(index, items.length)].focus();
             }));
-            const cancel = () => { close(); chips.children[index].focus(); };
+            const cancel = () => { close(); changed?.(group); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
             const renderChoices = () => {
                 drawer.querySelector('select')?.remove();
@@ -208,8 +222,13 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 }
             });
             drawer.hidden = false;
-            input.focus();
-            input.select();
+            if (restoredDraft) {
+                raw = restoredDraft.text;
+                input.value = display(raw);
+            } else {
+                input.focus();
+                input.select();
+            }
         }
         function paint() {
             chips.replaceChildren();
@@ -224,30 +243,39 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         }
         paint();
         const refreshQuotes = () => { paint(); refreshDrawer?.(); };
-        quoteToggle?.addEventListener('change', refreshQuotes);
+        quoteToggle?.addEventListener('change', refreshQuotes, { signal });
         const remove = iconButton('删除属性', 'remove', () => {
             if (!drawer.hidden) pending = undefined;
             quoteToggle?.removeEventListener('change', refreshQuotes);
             rows.splice(rows.indexOf(row), 1);
             line.remove();
+            changed?.();
         });
         line.append(nameCell, chips, remove, drawer);
         list.append(line);
+        if (draft) inspect(draft.index, draft);
         return key;
     }
     for (const row of initial) {
+        if ('appliedPrefix' in row) {
+            add({ ...row, name: row.appliedPrefix + row.name }, row.appliedPrefix);
+            continue;
+        }
         const suffix = row.name.startsWith(prefix) ? row.name.slice(prefix.length) : '';
         // Split only when rejoining the displayed fields will reproduce the original name.
         const matchesPrefix = suffix && suffix === suffix.trim() && !suffix.startsWith(prefix);
         add(row, matchesPrefix ? prefix : '');
     }
     const addRow = options('添加属性…', ['自定义属性', ...presets.map(p => p.name)], i => {
-        if (finish()) add({ name: presets[i - 1]?.name ?? '' }, usePrefix() ? prefix : '').focus();
+        if (finish()) {
+            add({ name: presets[i - 1]?.name ?? '' }, usePrefix() ? prefix : '').focus();
+            changed?.();
+        }
     });
     const foot = box('pl-add-row');
     foot.append(addRow);
     container.append(header, list, foot);
-    return () => {
+    function read() {
         if (!finish()) return null;
         const result = [];
         for (const row of rows) {
@@ -262,7 +290,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             result.push({ name: fullName, value });
         }
         return result;
-    };
+    }
+    return { read, snapshot: () => rows.map(row => ({
+        name: row.key.value, appliedPrefix: row.appliedPrefix, value: row.read(), draft: row.draft?.(),
+    })) };
 }
 
 async function edit(context, editor, source, locationId, config, updateConfig, active) {
@@ -291,11 +322,62 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     const navigation = box('pl-navigation');
     const pickerBox = box('pl-picker');
     pickerBox.append(picker);
-    navigation.append(pickerBox, iconButton('新增片段', 'block', () => addBlock([])));
+    const undo = iconButton('撤销', 'undo', () => travel(-1));
+    const redo = iconButton('重做', 'redo', () => travel(1));
+    navigation.append(undo, redo, pickerBox, iconButton('新增片段', 'block', () => {
+        addBlock([]);
+        record();
+    }));
     heading.append(element('h3', 'PLists 编辑器'), toggleLabel, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
     const readers = [];
+    let listeners = new AbortController();
+    const history = [];
+    let position = -1;
+    function updateButtons() {
+        undo.disabled = position <= 0;
+        redo.disabled = position >= history.length - 1;
+    }
+    function record(group, index = picker.selectedIndex) {
+        const state = JSON.stringify(readers.map(section => section.snapshot()));
+        if (history[position]?.state === state) return;
+        history.splice(position + 1);
+        if (position > 0 && group && history[position].group === group && history[position].index === index) {
+            history.pop();
+            position--;
+        }
+        if (history[position]?.state !== state) {
+            history.push({ state, group, index });
+            if (history.length > 101) history.shift();
+            position = history.length - 1;
+        }
+        updateButtons();
+    }
+    function travel(direction) {
+        const next = position + direction;
+        if (!history[next]) return;
+        const index = history[Math.max(position, next)].index;
+        position = next;
+        listeners.abort();
+        listeners = new AbortController();
+        sections.replaceChildren();
+        picker.replaceChildren();
+        readers.length = 0;
+        JSON.parse(history[position].state).forEach(addBlock);
+        show(Math.min(index, readers.length - 1));
+        updateButtons();
+        const focusUndo = redo.disabled || (direction < 0 && !undo.disabled);
+        (focusUndo ? undo : redo).focus();
+    }
+    panel.addEventListener('keydown', event => {
+        if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+        const key = event.key.toLowerCase();
+        if (key !== 'z' && key !== 'y') return;
+        event.preventDefault();
+        event.stopPropagation();
+        travel(key === 'y' || event.shiftKey ? 1 : -1);
+    });
     function show(index) {
         picker.selectedIndex = index;
         Array.from(sections.children).forEach((node, i) => { node.hidden = i !== index; });
@@ -304,13 +386,16 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     function addBlock(rows) {
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
-        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked, quoteToggle));
+        const index = readers.length;
+        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked, quoteToggle,
+            group => record(group, index), listeners.signal));
         sections.append(section);
         show(readers.length - 1);
     }
     blocks.forEach(block => addBlock(block.rows));
     if (!blocks.length) addBlock([]);
     show(0);
+    record();
     panel.append(sections);
     const writable = () => active() && editor.isConnected && source.isConnected &&
         ![editor, source].some(node => node.matches(':disabled, [readonly]')) &&
@@ -326,7 +411,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
                 return false;
             }
             const drafts = [];
-            for (const [i, read] of readers.entries()) {
+            for (const [i, { read }] of readers.entries()) {
                 show(i);
                 const draft = read();
                 if (!draft) return false;
@@ -382,7 +467,7 @@ export const plistEditor = {
         canvas.append(element('h4', '常用属性与参数'));
         const section = box('st-plist');
         canvas.append(section);
-        const read = rowList(section, config.presets ?? defaults);
+        const { read } = rowList(section, config.presets ?? defaults);
         return () => {
             for (const input of prefixFields) {
                 if (/[:：=;；\[\]]/u.test(input.value) || splitTraits(input.value) === null) {
