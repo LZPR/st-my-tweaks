@@ -83,6 +83,14 @@ function invalid(input, message) {
     return false;
 }
 
+function macroField() {
+    const field = element('textarea');
+    field.rows = 1;
+    field.dataset.macros = 'true';
+    field.dataset.macrosAutocomplete = 'always';
+    return field;
+}
+
 function wrapper(value) {
     if (/^"(?:\\[\s\S]|[^"\\])*"$/u.test(value)) return '"';
     if (/^“(?:\\[\s\S]|[^”\\])*”$/u.test(value)) return '”';
@@ -109,8 +117,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
     function add({ name = '', value = '', draft } = {}, appliedPrefix = '') {
         const line = box('pl-row');
         const keyBox = box('pl-key');
-        const key = element('textarea');
-        key.rows = 1;
+        const key = macroField();
         key.value = appliedPrefix && name.startsWith(appliedPrefix) ? name.slice(appliedPrefix.length) : name;
         key.placeholder = '属性名称';
         key.setAttribute('aria-label', '属性名称');
@@ -140,8 +147,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             if (!finish()) return;
             index ??= items.length;
             const editing = index < items.length;
-            const input = element('textarea');
-            input.rows = 1;
+            const input = macroField();
             let raw = editing ? items[index] : '';
             let hidden = Boolean(quoteToggle?.checked);
             input.value = display(raw);
@@ -158,6 +164,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 row.draft = undefined;
                 refreshDrawer = undefined;
                 drawer.hidden = true;
+                drawer.onkeydown = null;
                 drawer.replaceChildren();
                 paint();
             };
@@ -212,15 +219,16 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 input.value = display(raw);
                 renderChoices();
             };
-            input.addEventListener('keydown', event => {
-                if (event.isComposing) return;
+            // ST consumes completion keys on the textarea. Handle remaining editing keys as they bubble.
+            drawer.onkeydown = event => {
+                if (event.target !== input || event.isComposing || event.defaultPrevented) return;
                 if (event.key === 'Escape' || (event.key === 'Enter' && !event.shiftKey)) {
                     event.preventDefault();
                     event.stopPropagation();
                     if (event.key === 'Escape') cancel();
                     else commitFocus();
                 }
-            });
+            };
             drawer.hidden = false;
             if (restoredDraft) {
                 raw = restoredDraft.text;
