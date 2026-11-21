@@ -57,6 +57,10 @@ export function sortView(blocks, display, move) {
             positions.set(values, { block, row });
             const items = parts(attribute);
             items.forEach((raw, item) => control(display(raw) || '空参数', { block, row, item }, 'item', values));
+            const count = document.createElement('small');
+            count.className = 'pl-sort-count';
+            count.textContent = items.length + ' 个参数';
+            values.append(count);
             line.append(values);
             group.append(line);
         });

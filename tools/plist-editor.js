@@ -135,6 +135,9 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const display = raw => quoteToggle?.checked ? unquote(raw) : raw;
         let refreshDrawer;
         const chips = box('pl-chips');
+        const parameters = box('pl-parameters');
+        const count = box('pl-count', 'small');
+        parameters.append(chips, count);
         const drawer = box('pl-drawer');
         drawer.hidden = true;
         const row = { key, appliedPrefix, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
@@ -237,6 +240,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             }
         }
         function paint() {
+            count.textContent = items.length + ' 个参数';
             chips.replaceChildren();
             items.forEach((item, i) => {
                 const label = display(item);
@@ -257,7 +261,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             line.remove();
             changed?.();
         });
-        line.append(nameCell, chips, remove, drawer);
+        line.append(nameCell, parameters, remove, drawer);
         list.append(line);
         if (draft) inspect(draft.index, draft);
         return key;
@@ -297,7 +301,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         }
         return result;
     }
-    return { read, finish, snapshot: () => rows.map(row => ({
+    return { read, finish, get count() { return rows.length; }, snapshot: () => rows.map(row => ({
         name: row.key.value, appliedPrefix: row.appliedPrefix, value: row.read(), draft: row.draft?.(),
     })) };
 }
@@ -347,7 +351,10 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         record();
     });
     navigation.append(undo, redo, organize, pickerBox, newBlock);
-    heading.append(element('h3', 'PLists 编辑器'), toggleLabel, quoteLabel, navigation);
+    const title = box('pl-title');
+    const total = box('pl-total', 'small');
+    title.append(element('h3', 'PLists 编辑器'), total);
+    heading.append(title, toggleLabel, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
     const sortPanel = element('div');
@@ -359,9 +366,10 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     let listeners = new AbortController();
     const history = [];
     let position = -1;
-    function updateButtons() {
+    function updateHeader() {
         undo.disabled = position <= 0;
         redo.disabled = position >= history.length - 1;
+        total.textContent = '共 ' + readers.reduce((sum, section) => sum + section.count, 0) + ' 个属性';
     }
     function record(group, index = picker.selectedIndex) {
         const state = JSON.stringify(snapshot());
@@ -376,7 +384,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
             if (history.length > 101) history.shift();
             position = history.length - 1;
         }
-        updateButtons();
+        updateHeader();
     }
     function travel(direction) {
         const next = position + direction;
@@ -387,7 +395,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         if (sorting && state.some(rows => rows.some(row => row.draft))) setSorting(false);
         restore(state, Math.min(index, state.length - 1));
         if (sorting) paintSort();
-        updateButtons();
+        updateHeader();
         const focusUndo = redo.disabled || (direction < 0 && !undo.disabled);
         (focusUndo ? undo : redo).focus();
     }

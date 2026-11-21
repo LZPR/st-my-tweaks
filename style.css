@@ -310,6 +310,15 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 .st-plist .pl-row > .pl-icon { opacity: .7; }
 .st-plist .pl-chips, .st-plist .pl-drawer { flex-wrap: wrap; }
 
+.st-plist :is(.pl-count, .pl-total, .pl-sort-count) {
+    display: block;
+    font-size: .78em;
+    opacity: .75;
+}
+.st-plist .pl-sort-count { flex-basis: 100%; }
+.st-plist .pl-count { margin-top: .2em; }
+.st-plist .pl-parameters { min-width: 0; }
+
 .st-plist .pl-chip {
     max-width: 100%;
     width: auto;
@@ -347,7 +356,7 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 @container (max-width: 29em) {
     .st-plist .pl-columns { display: none; }
     .st-plist .pl-row { grid-template-columns: minmax(0, 1fr) 2em; row-gap: .55em; }
-    .st-plist .pl-chips { grid-column: 1 / -1; grid-row: 2; }
+    .st-plist .pl-parameters { grid-column: 1 / -1; grid-row: 2; }
     .st-plist .pl-row > .pl-icon { grid-column: 2; grid-row: 1; }
     .st-plist .pl-drawer { margin: 0; }
 }
