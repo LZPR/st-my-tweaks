@@ -1,11 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, splitTraits, writeBlocks } from './plist-format.js';
+import { defaults } from './plist-presets.js';
 
-const defaults = [
-    { name: '性别', value: '男, 女' },
-    { name: '外貌', value: '长发, 短发, 卷发, 直发' },
-    { name: '性格', value: '活泼, 腼腆, 温和, 冷静' },
-];
 let refreshTool;
 let nextParameterEdit = 0;
 const windowSizes = [70, 85, 95, 100];
