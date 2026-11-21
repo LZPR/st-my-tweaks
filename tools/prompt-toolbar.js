@@ -60,9 +60,9 @@ export function isEnabled(location, config) {
     return config[location.id] !== false;
 }
 
-export function renderLocations(canvas, config) {
+export function renderLocations(canvas, config, options = locations) {
     canvas.classList.add('flex-container', 'flexFlowColumn');
-    for (const location of locations) {
+    for (const location of options) {
         const label = document.createElement('label');
         label.className = 'checkbox_label';
         const checkbox = document.createElement('input');
