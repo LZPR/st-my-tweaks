@@ -716,10 +716,11 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
 }
 .st-my-tweaks-route strong { font-size: .85em; }
 .stmt-route-select {
+    display: grid;
+    gap: .35em;
     appearance: none;
     border: 0;
     padding: 0;
-    margin-inline-end: 2.2em;
     color: inherit;
     background: transparent;
     font: inherit;
@@ -729,6 +730,7 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
     white-space: pre-wrap;
     cursor: pointer;
 }
+.stmt-route-title { padding-inline-end: 2.2em; font-weight: 700; }
 .stmt-route-select::after { content: ''; position: absolute; inset: 0; border-radius: .65em; }
 .stmt-route-select:focus-visible { outline: none; }
 .stmt-route-select:focus-visible::after { outline: 2px dashed currentColor; outline-offset: 2px; }

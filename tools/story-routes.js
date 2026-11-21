@@ -50,10 +50,19 @@ function parseRoutes(raw) {
     const text = String(raw ?? '').trim();
     const fenced = /^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i.exec(text);
     const { routes } = JSON.parse(fenced ? fenced[1] : text);
-    if (!Array.isArray(routes) || !routes.length || routes.some(item => typeof item !== 'string' || !item.trim())) {
+    if (!Array.isArray(routes) || !routes.length) {
         throw new Error('Invalid routes');
     }
-    return [...new Set(routes.map(item => item.trim()))].map(text => ({ text }));
+    const unique = new Map();
+    for (const item of routes) {
+        if (typeof item?.title !== 'string' || !item.title.trim()
+            || typeof item.text !== 'string' || !item.text.trim()) {
+            throw new Error('A route requires a title and text');
+        }
+        const text = item.text.trim();
+        if (!unique.has(text)) unique.set(text, { title: item.title.trim(), text });
+    }
+    return [...unique.values()];
 }
 
 function button(label, click, icon) {
@@ -145,7 +154,8 @@ function start(context, getConfig) {
                 ? Math.min(4096, 1024 + 256 * count, Math.floor(settings.openai_max_context / 4)) : 0;
             const raw = await context.generateQuietPrompt({
                 responseLength: budget > settings?.openai_max_tokens ? budget : null,
-                quietPrompt: generation + '\n推荐提供 ' + count + ' 条。仅输出 JSON 对象，格式为 {"routes":["路线一的内容","路线二的内容"]}。',
+                quietPrompt: generation + '\n推荐提供 ' + count + ' 条。每条路线用简短的标题概括发展方向，例如“平稳发展的路线”。'
+                    + '正文写出结合当前情境的具体发展。仅输出 JSON 对象，格式为 {"routes":[{"title":"方向标题","text":"路线正文"}]}。',
             });
             if (!isCurrent(target)) return;
             try {
@@ -171,25 +181,32 @@ function start(context, getConfig) {
         const card = document.createElement('div');
         card.className = 'st-my-tweaks-route is-editing';
         editor = { route, card };
+        const title = document.createElement('input');
+        title.className = 'text_pole';
+        title.placeholder = '路线标题';
+        title.setAttribute('aria-label', '路线标题');
+        title.value = route?.title ?? '自定义路线';
         const field = document.createElement('textarea');
         field.id = 'stmt-route-body-editor';
         field.className = 'text_pole';
         field.rows = 4;
         field.value = route?.text ?? '';
-        field.setAttribute('aria-label', route ? '编辑路线' : '新建自定义路线');
+        field.placeholder = '路线正文';
+        field.setAttribute('aria-label', '路线正文');
         const expand = iconButton('全屏编辑路线正文', 'fa-expand');
         expand.classList.add('editor_maximize');
         expand.dataset.for = field.id;
-        card.append(field, actions(expand, button('保存', () => {
+        card.append(title, field, actions(expand, button('保存', () => {
             if (!isCurrent(target)) return;
+            const heading = title.value.trim();
             const text = field.value.trim();
-            if (!text) {
-                field.focus();
-                toastr.warning('请填写路线内容。');
+            if (!heading || !text) {
+                (heading ? field : title).focus();
+                toastr.warning(heading ? '请填写路线正文。' : '请填写路线标题。');
                 return;
             }
-            if (route) route.text = text;
-            else target.custom = { text };
+            if (route) Object.assign(route, { title: heading, text });
+            else target.custom = { title: heading, text };
             editor = null;
             syncPrompt();
             render(route ?? target.custom);
@@ -236,15 +253,22 @@ function start(context, getConfig) {
             const card = document.createElement('div');
             card.className = 'st-my-tweaks-route';
             card.classList.toggle('is-selected', active);
-            const select = button(route.text, () => {
+            const select = button('', () => {
                 if (!isCurrent(target)) return;
                 target.selected = active ? null : route;
                 target.anchor = SillyTavern.getContext().chat.length - 1;
+                target.notice = '';
                 syncPrompt();
                 render(route);
             });
             select.className = 'stmt-route-select';
             select.setAttribute('aria-pressed', String(active));
+            const title = document.createElement('span');
+            title.className = 'stmt-route-title';
+            title.textContent = route.title;
+            const body = document.createElement('span');
+            body.textContent = route.text;
+            select.append(title, body);
             if (route === target.custom) {
                 const label = document.createElement('strong');
                 label.textContent = '自定义';
