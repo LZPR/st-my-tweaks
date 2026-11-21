@@ -700,6 +700,7 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
     gap: .65em;
 }
 .st-my-tweaks-route {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: .65em;
@@ -714,7 +715,30 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
     box-shadow: inset 3px 0 var(--route-accent);
 }
 .st-my-tweaks-route strong { font-size: .85em; }
-.stmt-route-text { line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.stmt-route-select {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    margin-inline-end: 2.2em;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    text-align: start;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    cursor: pointer;
+}
+.stmt-route-select::after { content: ''; position: absolute; inset: 0; border-radius: .65em; }
+.stmt-route-select:focus-visible { outline: none; }
+.stmt-route-select:focus-visible::after { outline: 2px dashed currentColor; outline-offset: 2px; }
+.stmt-routes .stmt-route-edit {
+    position: absolute;
+    top: .5em;
+    inset-inline-end: .5em;
+    width: 2.1em;
+    padding: 0;
+}
 .st-my-tweaks-route .stmt-route-actions { margin-top: auto; font-size: .9em; }
 .stmt-routes textarea { margin: .75em 0; }
 .stmt-message-menu button:is(:hover, :focus-visible) { background: var(--SmartThemeBorderColor, #555); }

@@ -67,7 +67,14 @@ function button(label, click, icon) {
         glyph.setAttribute('aria-hidden', 'true');
         element.prepend(glyph);
     }
-    element.addEventListener('click', click);
+    if (click) element.addEventListener('click', click);
+    return element;
+}
+
+function iconButton(label, icon, click) {
+    const element = button('', click, icon);
+    element.title = label;
+    element.setAttribute('aria-label', label);
     return element;
 }
 
@@ -186,7 +193,7 @@ function start(context, getConfig) {
         field.focus();
     }
 
-    function render() {
+    function render(focusRoute) {
         if (!panel) return;
         if (editor) {
             if (editor.parentElement !== panel) panel.replaceChildren(editor);
@@ -216,26 +223,26 @@ function start(context, getConfig) {
             const card = document.createElement('div');
             card.className = 'st-my-tweaks-route';
             card.classList.toggle('is-selected', active);
-            const content = document.createElement('div');
-            content.className = 'stmt-route-text';
-            content.textContent = route.text;
-            if (active || route === target.custom) {
-                const label = document.createElement('strong');
-                label.textContent = [active && '当前路线', route === target.custom && '自定义'].filter(Boolean).join(' · ');
-                card.append(label);
-            }
-            const select = button(active ? '取消选择' : '选择', () => {
+            const select = button(route.text, () => {
                 if (!isCurrent(target)) return;
                 target.selected = active ? null : route;
                 target.anchor = SillyTavern.getContext().chat.length - 1;
-                target.notice = active ? '已取消路线。' : '路线已生效。';
-                update();
-            }, active ? 'fa-check' : 'fa-arrow-right');
+                syncPrompt();
+                render(route);
+            });
+            select.className = 'stmt-route-select';
             select.setAttribute('aria-pressed', String(active));
-            const change = button('编辑', () => edit(route), 'fa-pen');
+            if (route === target.custom) {
+                const label = document.createElement('strong');
+                label.textContent = '自定义';
+                card.append(label);
+            }
+            const change = iconButton('编辑路线', 'fa-pen', () => edit(route));
+            change.classList.add('stmt-route-edit');
             change.disabled = target.pending && route !== target.custom;
-            card.append(content, actions(select, change));
+            card.append(select, change);
             list.append(card);
+            if (route === focusRoute) select.focus({ preventScroll: true });
         }
     }
 
