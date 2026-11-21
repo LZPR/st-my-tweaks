@@ -236,7 +236,12 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         list.append(line);
         return key;
     }
-    initial.forEach(row => add(row));
+    for (const row of initial) {
+        const suffix = row.name.startsWith(prefix) ? row.name.slice(prefix.length) : '';
+        // Split only when rejoining the displayed fields will reproduce the original name.
+        const matchesPrefix = suffix && suffix === suffix.trim() && !suffix.startsWith(prefix);
+        add(row, matchesPrefix ? prefix : '');
+    }
     const addRow = options('添加属性…', ['自定义属性', ...presets.map(p => p.name)], i => {
         if (finish()) add({ name: presets[i - 1]?.name ?? '' }, usePrefix() ? prefix : '').focus();
     });
