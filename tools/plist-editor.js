@@ -2,6 +2,7 @@ import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, lo
 import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
 import { openChoice } from './plist-choice.js';
+import { highlightSection } from './plist-find.js';
 import { parameterSelection } from './plist-selection.js';
 import { defaults, getPresets } from './plist-presets.js';
 
@@ -33,6 +34,7 @@ function action(label, run) {
 }
 
 const paths = {
+    find: 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 1 1 16 0',
     add: 'M12 5v14M5 12h14',
     block: 'M14 3H5v16h7M9 8h7M9 12h4M18 13v8M14 17h8',
     remove: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7',
@@ -348,13 +350,51 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         addBlock([]);
         record();
     });
-    navigation.append(undo, redo, organize, pickerBox, newBlock);
+    const findButton = iconButton('查找当前片段', 'find', () => toggleFind(findBar.hidden));
+    findButton.setAttribute('aria-expanded', 'false');
+    navigation.append(findButton, undo, redo, organize, pickerBox, newBlock);
     const title = box('pl-title');
     const total = box('pl-total', 'small');
     title.append(element('h3', 'PLists 编辑器'), total);
     heading.append(title, toggleLabel, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
+    const findBar = box('pl-find');
+    findBar.hidden = true;
+    const query = element('input');
+    query.type = 'search';
+    query.placeholder = '查找当前片段';
+    query.setAttribute('aria-label', query.placeholder);
+    const matchCount = element('small');
+    matchCount.setAttribute('role', 'status');
+    findBar.append(query, matchCount, iconButton('关闭查找', 'close', () => toggleFind(false)));
+    panel.append(findBar);
+    let highlightedSection;
+    function refreshFind() {
+        const current = sections.children[picker.selectedIndex];
+        if (highlightedSection && (highlightedSection !== current || findBar.hidden)) {
+            highlightSection(highlightedSection, '');
+            highlightedSection = undefined;
+        }
+        if (findBar.hidden || !current) return;
+        const count = highlightSection(current, query.value);
+        highlightedSection = current;
+        matchCount.textContent = count + ' 处匹配';
+    }
+    function toggleFind(open) {
+        findBar.hidden = !open;
+        findButton.setAttribute('aria-expanded', String(open));
+        refreshFind();
+        (open ? query : findButton).focus();
+    }
+    query.addEventListener('input', refreshFind);
+    query.addEventListener('keydown', event => {
+        if (!event.isComposing && (event.key === 'Enter' || event.key === 'Escape')) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.key === 'Escape') toggleFind(false);
+        }
+    });
     const sortPanel = element('div');
     sortPanel.hidden = true;
     const hint = element('p', '拖动属性或参数可跨组排序。也可先点选一项，再点选插入位置。');
@@ -480,6 +520,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         total.textContent = '共 ' + readers.reduce((sum, section) => sum + section.count, 0) + ' 个属性';
     }
     function record(group, index = picker.selectedIndex) {
+        refreshFind();
         const state = JSON.stringify(snapshot());
         if (history[position]?.state === state) return;
         history.splice(position + 1);
@@ -527,6 +568,8 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         }));
     }
     function setSorting(on) {
+        if (on && !findBar.hidden) toggleFind(false);
+        findButton.hidden = on;
         sorting = on;
         organize.setAttribute('aria-pressed', String(on));
         sections.hidden = pickerBox.hidden = newBlock.hidden = toggleLabel.hidden = on;
@@ -534,7 +577,10 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         if (on) paintSort();
         else sortPanel.replaceChildren();
     }
-    quoteToggle.addEventListener('change', () => { if (sorting) paintSort(); });
+    quoteToggle.addEventListener('change', () => {
+        if (sorting) paintSort();
+        else queueMicrotask(refreshFind);
+    });
     panel.addEventListener('keydown', event => {
         if (selection.active) {
             if (event.key === 'Escape') {
@@ -546,6 +592,14 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         }
         if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
         const key = event.key.toLowerCase();
+        if (key === 'f' && !sorting) {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleFind(true);
+            query.select();
+            return;
+        }
+        if (event.target === query) return;
         if (key !== 'z' && key !== 'y') return;
         event.preventDefault();
         event.stopPropagation();
@@ -554,6 +608,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     function show(index) {
         picker.selectedIndex = index;
         Array.from(sections.children).forEach((node, i) => { node.hidden = i !== index; });
+        refreshFind();
     }
     picker.addEventListener('change', () => show(picker.selectedIndex));
     function addBlock(rows) {

@@ -357,6 +357,13 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     overflow-wrap: anywhere;
 }
 .st-plist .pl-key > span { visibility: hidden; }
+.st-plist .pl-find { display: flex; align-items: center; gap: .55em; margin-bottom: .65em; }
+.st-plist .pl-find input { flex: 1; min-width: 0; }
+.st-plist .pl-find small { white-space: nowrap; }
+.st-plist .pl-row mark { background: #946000; color: #fff; border-radius: .15em; }
+.st-plist .pl-key > span:has(mark) { visibility: visible; color: transparent; pointer-events: none; }
+.st-plist .pl-key > span mark { color: transparent; }
+.st-plist .pl-key:has(mark) > textarea { background: transparent; }
 .st-plist .pl-key > textarea {
     height: 100%;
     border-color: var(--pl-line);
