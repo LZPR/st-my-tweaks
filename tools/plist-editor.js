@@ -422,7 +422,7 @@ export const plistEditor = {
                 icon.className = 'fa-solid fa-list';
                 icon.setAttribute('aria-hidden', 'true');
                 button.append(icon);
-                toolbar.append(button);
+                toolbar.prepend(button);
                 const view = { source, remove() {
                     button.remove();
                     if (!toolbar.childElementCount) toolbar.remove();

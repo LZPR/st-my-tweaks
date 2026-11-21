@@ -346,4 +346,4 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     .st-plist .pl-drawer { margin: 0; }
 }
 
-.st-my-tweaks-plist-button { order: 1; }
+.st-my-tweaks-plist-button { margin-inline-end: auto; }
