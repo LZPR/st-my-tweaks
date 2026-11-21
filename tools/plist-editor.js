@@ -1,8 +1,9 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
-import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
+import { attributeName, findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
 import { openChoice } from './plist-choice.js';
 import { highlightSection } from './plist-find.js';
+import { markDuplicate, repeated } from './plist-duplicates.js';
 import { parameterSelection } from './plist-selection.js';
 import { defaults, getPresets } from './plist-presets.js';
 
@@ -109,6 +110,11 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
     header.append(element('span', '属性'), element('span', '参数'));
     const list = box('pl-rows');
     const rows = [];
+    function markNames() {
+        const names = rows.map(row => attributeName(row.appliedPrefix, row.key.value));
+        const duplicates = repeated(names);
+        rows.forEach((row, i) => markDuplicate(row.key, duplicates.has(names[i]), '片段内属性重复'));
+    }
     let pending;
     const finish = () => !pending || pending();
     function add({ name = '', value = '', draft } = {}, appliedPrefix = '') {
@@ -124,6 +130,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const measureKey = () => { measure.textContent = key.value + ' '; };
         measureKey();
         key.addEventListener('input', measureKey);
+        key.addEventListener('input', markNames);
         key.addEventListener('input', () => changed?.('name-' + rows.indexOf(row)));
         keyBox.append(measure, key);
         const nameCell = box('pl-name-cell');
@@ -241,10 +248,13 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         function paint() {
             count.textContent = items.length + ' 个参数';
             chips.replaceChildren();
+            const names = items.map(unquote);
+            const duplicates = repeated(names);
             items.forEach((item, i) => {
                 const label = display(item);
                 const chip = action(label, () => inspect(i));
                 chip.className = 'pl-chip';
+                markDuplicate(chip, duplicates.has(names[i]), '属性内参数重复');
                 chip.title = '编辑参数 · ' + label;
                 chips.append(chip);
             });
@@ -257,6 +267,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             if (!drawer.hidden) pending = undefined;
             quoteToggle?.removeEventListener('change', refreshQuotes);
             rows.splice(rows.indexOf(row), 1);
+            markNames();
             line.remove();
             changed?.();
         });
@@ -275,9 +286,11 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const matchesPrefix = suffix && suffix === suffix.trim() && !suffix.startsWith(prefix);
         add(row, matchesPrefix ? prefix : '');
     }
+    markNames();
     const addRow = choiceButton('添加属性', presets.map(p => p.name), (i, text) => {
         if (finish()) {
             add({ name: presets[i]?.name ?? text }, usePrefix() ? prefix : '').focus();
+            markNames();
             changed?.();
         }
     }, true);
@@ -295,8 +308,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 invalid(row.key, !value ? '请至少添加一个参数，或删除此属性。' : '请填写有效的属性名称。');
                 return null;
             }
-            const fullName = name.startsWith(row.appliedPrefix) ? name : row.appliedPrefix + name;
-            result.push({ name: fullName, value });
+            result.push({ name: attributeName(row.appliedPrefix, name), value });
         }
         return result;
     }
@@ -565,7 +577,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
             restore(state, index);
             record(undefined, index);
             paintSort();
-        }));
+        }, unquote));
     }
     function setSorting(on) {
         if (on && !findBar.hidden) toggleFind(false);

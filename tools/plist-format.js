@@ -119,3 +119,8 @@ export function writeBlocks(text, blocks, drafts) {
 function formatBlock(rows) {
     return rows.length ? '[' + rows.map(row => row.name + ': ' + row.value).join('; ') + ']' : '';
 }
+
+export function attributeName(prefix, name) {
+    const key = name.trim();
+    return !key || key.startsWith(prefix) ? key : prefix + key;
+}

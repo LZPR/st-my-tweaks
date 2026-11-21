@@ -1,4 +1,5 @@
-import { splitTraits } from './plist-format.js';
+import { attributeName, splitTraits } from './plist-format.js';
+import { markDuplicate, repeated } from './plist-duplicates.js';
 
 function parts(row) {
     return (splitTraits(row.value) ?? [row.value]).map(value => value.trim()).filter(Boolean);
@@ -28,7 +29,7 @@ export function moveItem(blocks, source, target) {
     return true;
 }
 
-export function sortView(blocks, display, move) {
+export function sortView(blocks, display, move, unquote) {
     const view = document.createElement('div');
     view.className = 'pl-sort';
     let selected, pointer, marker, frame;
@@ -47,16 +48,23 @@ export function sortView(blocks, display, move) {
         const title = document.createElement('h4');
         title.textContent = '片段 ' + (block + 1);
         group.append(title);
+        const names = rows.map(row => attributeName(row.appliedPrefix, row.name));
+        const duplicates = repeated(names);
         rows.forEach((attribute, row) => {
             const line = document.createElement('div');
             line.className = 'pl-sort-row';
-            const name = attribute.appliedPrefix + attribute.name;
-            control(name || '未命名属性', { block, row }, 'key', line);
+            const key = control(names[row] || '未命名属性', { block, row }, 'key', line);
+            markDuplicate(key, duplicates.has(names[row]), '片段内属性重复');
             const values = document.createElement('div');
             values.className = 'pl-sort-values';
             positions.set(values, { block, row });
             const items = parts(attribute);
-            items.forEach((raw, item) => control(display(raw) || '空参数', { block, row, item }, 'item', values));
+            const itemNames = items.map(unquote);
+            const duplicateItems = repeated(itemNames);
+            items.forEach((raw, item) => {
+                const chip = control(display(raw) || '空参数', { block, row, item }, 'item', values);
+                markDuplicate(chip, duplicateItems.has(itemNames[item]), '属性内参数重复');
+            });
             const count = document.createElement('small');
             count.className = 'pl-sort-count';
             count.textContent = items.length + ' 个参数';
