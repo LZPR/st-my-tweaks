@@ -1,4 +1,5 @@
-import { librarySource, filterOptions, normalizeFilters, parseLibrary, pickName, renderLibrarySettings } from './name-library.js';
+import { editFilters } from './name-filters.js';
+import { librarySource, normalizeFilters, parseLibrary, pickName, renderLibrarySettings } from './name-library.js';
 
 const fieldSelector = 'input#character_name_pole, dialog.popup textarea.popup-input';
 const rowClass = 'st-my-tweaks-name-row';
@@ -11,42 +12,6 @@ function isNameField(field, context) {
     if (content.querySelector('.onboarding')) return true;
     const title = (content.querySelector('h3') ?? content).textContent.trim();
     return nameHeadings.some(key => title === key || title === context.translate?.(key));
-}
-
-async function editFilters(context, library, filters) {
-    const content = document.createElement('div');
-    const heading = document.createElement('h3');
-    heading.textContent = '随机取名条件';
-    const help = document.createElement('p');
-    help.textContent = '每项可多选，留空表示不限。';
-    content.append(heading, help);
-    const labels = { gender: '性别', style: '风格', length: '姓名字数', surname: '姓氏' };
-    for (const [key, values] of Object.entries(filterOptions(library))) {
-        const group = document.createElement('fieldset');
-        const legend = document.createElement('legend');
-        legend.textContent = labels[key];
-        const options = document.createElement('div');
-        options.className = 'flex-container';
-        for (const value of values) {
-            const label = document.createElement('label');
-            label.className = 'checkbox_label';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = filters[key].includes(value);
-            checkbox.addEventListener('change', () => {
-                if (checkbox.checked) filters[key].push(value);
-                else filters[key] = filters[key].filter(option => option !== value);
-            });
-            label.append(checkbox, key === 'length' ? `${value} 字` : value);
-            options.append(label);
-        }
-        group.append(legend, options);
-        content.append(group);
-    }
-    const result = await context.callGenericPopup(content, context.POPUP_TYPE.CONFIRM, '', {
-        okButton: '保存条件', cancelButton: '取消', leftAlign: true, allowVerticalScrolling: true,
-    });
-    return result === context.POPUP_RESULT.AFFIRMATIVE;
 }
 
 export const randomName = {
