@@ -20,7 +20,7 @@ async function editFilters(context, library, filters) {
     const help = document.createElement('p');
     help.textContent = '每项可多选，留空表示不限。';
     content.append(heading, help);
-    const labels = { gender: '性别', style: '风格', surname: '姓氏' };
+    const labels = { gender: '性别', style: '风格', length: '姓名字数', surname: '姓氏' };
     for (const [key, values] of Object.entries(filterOptions(library))) {
         const group = document.createElement('fieldset');
         const legend = document.createElement('legend');
@@ -37,7 +37,7 @@ async function editFilters(context, library, filters) {
                 if (checkbox.checked) filters[key].push(value);
                 else filters[key] = filters[key].filter(option => option !== value);
             });
-            label.append(checkbox, value);
+            label.append(checkbox, key === 'length' ? `${value} 字` : value);
             options.append(label);
         }
         group.append(legend, options);

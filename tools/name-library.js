@@ -6,7 +6,7 @@ const previousDefault = `姓氏 | 沈 江 林 顾 苏 陆 云 叶 白 程 温 �
 男 | 现代 | 亦航 书远 明朗 言川 奕安 时予
 女 | 现代 | 以晴 一禾 可欣 予宁 安歌 思乔`;
 
-export const defaultLibrary = `男 | 古风 | 沈·云岫 江·景行 林·怀瑾 顾·望舒 苏·归舟 陆·长卿 云·砚之 叶·修竹 白·鹤眠 程·清晏
+const originalFullLibrary = `男 | 古风 | 沈·云岫 江·景行 林·怀瑾 顾·望舒 苏·归舟 陆·长卿 云·砚之 叶·修竹 白·鹤眠 程·清晏
 男 | 古风 | 温·子衡 唐·闻笙 慕容·照川 上官·明庭 陈·观澜 李·思齐 许·慎言 周·承璧 吴·庭筠 徐·砚秋
 男 | 古风 | 何·疏桐 谢·问津 宋·知礼 萧·彦清 裴·玄度 秦·书白 韩·听松 柳·南山 杜·风举 贺·行简
 男 | 古风 | 江·云深 沈·怀玉 林·鸣珂 陆·若谷 苏·行止 程·舒怀 叶·崇文 白·思邈 温·允中 唐·敬之
@@ -39,8 +39,17 @@ export const defaultLibrary = `男 | 古风 | 沈·云岫 江·景行 林·怀�
 
 export function librarySource(config) {
     const saved = config.library;
-    return !saved || saved.trim().replaceAll('\r\n', '\n') === previousDefault ? defaultLibrary : saved;
+    const normalized = saved?.trim().replaceAll('\r\n', '\n');
+    return !saved || normalized === previousDefault || normalized === originalFullLibrary ? defaultLibrary : saved;
 }
+
+export const defaultLibrary = originalFullLibrary + `
+男 | 古风 | 沈·珩
+女 | 古风 | 江·蘅
+男 | 网文风 | 陆·朔
+女 | 网文风 | 叶·翎
+男 | 现代 | 周·朗
+女 | 现代 | 林·悦`;
 
 const splitNames = value => value.split(/[\s,，、]+/u).filter(Boolean);
 
@@ -68,13 +77,27 @@ export function parseLibrary(source) {
     }
     const samples = [...surnameSamples, ...surnames];
     if (!samples.length || !groups.length) throw new Error('名字库至少需要一个姓氏和一组名字。');
-    return { surnames: [...new Set(samples)], surnameSamples: samples, groups };
+    const lengths = new Map();
+    const segmenter = new Intl.Segmenter('zh', { granularity: 'grapheme' });
+    function wordLengths(words) {
+        const sizes = new Set();
+        for (const word of words) {
+            if (!lengths.has(word)) lengths.set(word, [...segmenter.segment(word)].length);
+            sizes.add(lengths.get(word));
+        }
+        return [...sizes];
+    }
+    const surnameSizes = wordLengths(samples);
+    const givenSizes = wordLengths(groups.flatMap(group => group.names));
+    const fullLengths = [...new Set(surnameSizes.flatMap(size => givenSizes.map(n => size + n)))].sort((a, b) => a - b);
+    return { surnames: [...new Set(samples)], surnameSamples: samples, groups, lengths, fullLengths };
 }
 
 export function filterOptions(library) {
     return {
         gender: [...new Set(library.groups.map(group => group.gender))],
         style: [...new Set(library.groups.map(group => group.style))],
+        length: library.fullLengths,
         surname: library.surnames,
     };
 }
@@ -86,18 +109,30 @@ export function normalizeFilters(filters, library) {
 
 export function pickName(library, filters, previous) {
     const matches = (key, value) => !filters[key].length || filters[key].includes(value);
-    const surnames = library.surnameSamples.filter(value => matches('surname', value));
     const names = [...new Set(library.groups
         .filter(group => matches('gender', group.gender) && matches('style', group.style))
         .flatMap(group => group.names))];
-    if (!names.length) return '';
+    const choices = new Map();
+    function namesFor(surname) {
+        const size = library.lengths.get(surname);
+        if (!choices.has(size)) {
+            choices.set(size, names.filter(name => matches('length', size + library.lengths.get(name))));
+        }
+        return choices.get(size);
+    }
+    const surnames = library.surnameSamples.filter(value => matches('surname', value) && namesFor(value).length);
+    if (!surnames.length) return '';
     const pick = values => values[Math.floor(Math.random() * values.length)];
     const surname = pick(surnames);
-    const name = pick(names);
+    const eligible = namesFor(surname);
+    const name = pick(eligible);
     if (surname + name !== previous) return surname + name;
-    if (names.length > 1) return surname + pick(names.filter(candidate => candidate !== name));
+    if (eligible.length > 1) return surname + pick(eligible.filter(candidate => candidate !== name));
     const alternatives = surnames.filter(candidate => candidate !== surname);
-    if (alternatives.length) return pick(alternatives) + name;
+    if (alternatives.length) {
+        const next = pick(alternatives);
+        return next + pick(namesFor(next));
+    }
     return previous;
 }
 
