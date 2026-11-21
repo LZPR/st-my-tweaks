@@ -81,7 +81,23 @@ function invalid(input, message) {
     return false;
 }
 
-function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false) {
+function wrapper(value) {
+    if (/^"(?:\\[\s\S]|[^"\\])*"$/u.test(value)) return '"';
+    if (/^“(?:\\[\s\S]|[^”\\])*”$/u.test(value)) return '”';
+    return '';
+}
+
+function unquote(value) {
+    const end = wrapper(value);
+    if (!end) return value;
+    return value.slice(1, -1).replace(/\\([\\"”])/gu, (pair, c) => c === end || c === '\\' ? c : pair);
+}
+
+function enclose(value, end) {
+    return (end === '”' ? '“' : '"') + value.replaceAll('\\', '\\\\').replaceAll(end, '\\' + end) + end;
+}
+
+function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle) {
     const header = box('pl-columns');
     header.append(element('span', '属性'), element('span', '参数'));
     const list = box('pl-rows');
@@ -108,6 +124,8 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         nameCell.append(keyBox);
         const initialItems = (splitTraits(value) ?? [value]).map(x => x.trim()).filter(Boolean);
         const items = [...initialItems];
+        const display = raw => quoteToggle?.checked ? unquote(raw) : raw;
+        let refreshDrawer;
         const chips = box('pl-chips');
         const drawer = box('pl-drawer');
         drawer.hidden = true;
@@ -121,21 +139,30 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const editing = index < items.length;
             const input = element('textarea');
             input.rows = 1;
-            input.value = editing ? items[index] : '';
+            let raw = editing ? items[index] : '';
+            let hidden = Boolean(quoteToggle?.checked);
+            input.value = display(raw);
+            function rawInput() {
+                const originalDisplay = hidden ? unquote(raw) : raw;
+                if (input.value === originalDisplay) return raw;
+                const end = hidden && wrapper(raw);
+                return end ? enclose(input.value, end) : input.value.trim();
+            }
             input.placeholder = '输入一个参数';
             input.setAttribute('aria-label', '参数内容');
             const close = () => {
                 pending = undefined;
+                refreshDrawer = undefined;
                 drawer.hidden = true;
                 drawer.replaceChildren();
                 paint();
             };
             const commit = () => {
-                let next = input.value.trim();
+                let next = rawInput();
                 if (!next && editing) return invalid(input, '请输入参数，或点击删除图标。');
                 if (next && (/[\[\]]/u.test(next) || splitTraits(next, ';；')?.length !== 1))
                     return invalid(input, '请配对括号，并避开方括号和顶层分号。');
-                if (splitTraits(next).length > 1) next = '"' + next.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
+                if (splitTraits(next).length > 1) next = enclose(next, '"');
                 if (next) items[index] = next;
                 close();
                 return true;
@@ -152,16 +179,26 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             }));
             const cancel = () => { close(); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
-            if (!editing) {
+            const renderChoices = () => {
+                drawer.querySelector('select')?.remove();
+                if (editing) return;
                 const name = key.value.trim();
                 const preset = presets.find(p => p.name === name)
                     ?? presets.find(p => prefix && prefix + p.name === name);
                 const choices = (splitTraits(preset?.value ?? '') ?? []).map(v => v.trim()).filter(v => v && !items.includes(v));
-                if (choices.length) drawer.append(options('选择常用参数…', choices, i => {
-                    input.value = choices[i];
+                if (choices.length) drawer.append(options('选择常用参数…', choices.map(display), i => {
+                    raw = choices[i];
+                    input.value = display(raw);
                     commitFocus();
                 }));
-            }
+            };
+            renderChoices();
+            refreshDrawer = () => {
+                raw = rawInput();
+                hidden = quoteToggle.checked;
+                input.value = display(raw);
+                renderChoices();
+            };
             input.addEventListener('keydown', event => {
                 if (event.isComposing) return;
                 if (event.key === 'Escape' || (event.key === 'Enter' && !event.shiftKey)) {
@@ -178,16 +215,20 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         function paint() {
             chips.replaceChildren();
             items.forEach((item, i) => {
-                const chip = action(item, () => inspect(i));
+                const label = display(item);
+                const chip = action(label, () => inspect(i));
                 chip.className = 'pl-chip';
-                chip.title = '编辑参数 · ' + item;
+                chip.title = '编辑参数 · ' + label;
                 chips.append(chip);
             });
             chips.append(iconButton('添加参数', 'add', () => inspect()));
         }
         paint();
+        const refreshQuotes = () => { paint(); refreshDrawer?.(); };
+        quoteToggle?.addEventListener('change', refreshQuotes);
         const remove = iconButton('删除属性', 'remove', () => {
             if (!drawer.hidden) pending = undefined;
+            quoteToggle?.removeEventListener('change', refreshQuotes);
             rows.splice(rows.indexOf(row), 1);
             line.remove();
         });
@@ -235,13 +276,19 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     toggle.addEventListener('change', () => updateConfig({ usePrefix: toggle.checked }));
     toggleLabel.title = prefix ? '新增属性前缀：' + prefix : '此区域的前缀为空，可在工具设置中修改';
     toggleLabel.append(toggle, box('pl-check', 'span'), '添加前缀');
+    const quoteLabel = box('pl-toggle', 'label');
+    const quoteToggle = element('input');
+    quoteToggle.type = 'checkbox';
+    quoteToggle.checked = config.hideQuotes === true;
+    quoteToggle.addEventListener('change', () => updateConfig({ hideQuotes: quoteToggle.checked }));
+    quoteLabel.append(quoteToggle, box('pl-check', 'span'), '隐藏引号');
     const picker = element('select');
     picker.setAttribute('aria-label', '切换片段');
     const navigation = box('pl-navigation');
     const pickerBox = box('pl-picker');
     pickerBox.append(picker);
     navigation.append(pickerBox, iconButton('新增片段', 'block', () => addBlock([])));
-    heading.append(element('h3', 'PLists 编辑器'), toggleLabel, navigation);
+    heading.append(element('h3', 'PLists 编辑器'), toggleLabel, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
     const readers = [];
@@ -253,7 +300,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     function addBlock(rows) {
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
-        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked));
+        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked, quoteToggle));
         sections.append(section);
         show(readers.length - 1);
     }
