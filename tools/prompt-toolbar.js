@@ -22,7 +22,7 @@ export const responsePresetSelectors = new Map([
     ['novel', '#ai_response_configuration textarea#nai_preamble_textarea'],
     ['textgenerationwebui', '#ai_response_configuration textarea#negative_prompt_textgenerationwebui'],
 ]);
-const locations = [
+export const locations = [
     {
         id: 'character',
         label: '角色管理',

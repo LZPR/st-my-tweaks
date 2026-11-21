@@ -1,4 +1,4 @@
-import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
+import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, splitTraits, writeBlocks } from './plist-format.js';
 
 const defaults = [
@@ -8,6 +8,11 @@ const defaults = [
 ];
 let refreshTool;
 const windowSizes = [70, 85, 95, 100];
+const defaultPrefixes = { character: "{{char}}'s ", persona: "{{user}}'s " };
+
+function prefixFor(config, locationId) {
+    return config.prefixes?.[locationId] ?? defaultPrefixes[locationId] ?? '';
+}
 
 function windowSize(config) {
     return windowSizes.includes(config.windowSize) ? config.windowSize : 95;
@@ -76,19 +81,19 @@ function invalid(input, message) {
     return false;
 }
 
-function rowList(container, initial, presets = []) {
+function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false) {
     const header = box('pl-columns');
     header.append(element('span', '属性'), element('span', '参数'));
     const list = box('pl-rows');
     const rows = [];
     let pending;
     const finish = () => !pending || pending();
-    function add({ name = '', value = '' } = {}) {
+    function add({ name = '', value = '' } = {}, appliedPrefix = '') {
         const line = box('pl-row');
         const keyBox = box('pl-key');
         const key = element('textarea');
         key.rows = 1;
-        key.value = name;
+        key.value = appliedPrefix && name.startsWith(appliedPrefix) ? name.slice(appliedPrefix.length) : name;
         key.placeholder = '属性名称';
         key.setAttribute('aria-label', '属性名称');
         // Size to soft-wrapped text even when a previously hidden section opens.
@@ -98,12 +103,15 @@ function rowList(container, initial, presets = []) {
         measureKey();
         key.addEventListener('input', measureKey);
         keyBox.append(measure, key);
+        const nameCell = box('pl-name-cell');
+        if (appliedPrefix) nameCell.append(element('small', appliedPrefix));
+        nameCell.append(keyBox);
         const initialItems = (splitTraits(value) ?? [value]).map(x => x.trim()).filter(Boolean);
         const items = [...initialItems];
         const chips = box('pl-chips');
         const drawer = box('pl-drawer');
         drawer.hidden = true;
-        const row = { key, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
+        const row = { key, appliedPrefix, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
             ? value : items.join(', ') };
         rows.push(row);
 
@@ -145,7 +153,9 @@ function rowList(container, initial, presets = []) {
             const cancel = () => { close(); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
             if (!editing) {
-                const preset = presets.find(p => p.name === key.value.trim());
+                const name = key.value.trim();
+                const preset = presets.find(p => p.name === name)
+                    ?? presets.find(p => prefix && prefix + p.name === name);
                 const choices = (splitTraits(preset?.value ?? '') ?? []).map(v => v.trim()).filter(v => v && !items.includes(v));
                 if (choices.length) drawer.append(options('选择常用参数…', choices, i => {
                     input.value = choices[i];
@@ -181,13 +191,13 @@ function rowList(container, initial, presets = []) {
             rows.splice(rows.indexOf(row), 1);
             line.remove();
         });
-        line.append(keyBox, chips, remove, drawer);
+        line.append(nameCell, chips, remove, drawer);
         list.append(line);
         return key;
     }
-    initial.forEach(add);
+    initial.forEach(row => add(row));
     const addRow = options('添加属性…', ['自定义属性', ...presets.map(p => p.name)], i => {
-        if (finish()) add({ name: presets[i - 1]?.name ?? '' }).focus();
+        if (finish()) add({ name: presets[i - 1]?.name ?? '' }, usePrefix() ? prefix : '').focus();
     });
     const foot = box('pl-add-row');
     foot.append(addRow);
@@ -203,26 +213,35 @@ function rowList(container, initial, presets = []) {
                 invalid(row.key, !value ? '请至少添加一个参数，或删除此属性。' : '请填写有效的属性名称。');
                 return null;
             }
-            result.push({ name, value });
+            const fullName = name.startsWith(row.appliedPrefix) ? name : row.appliedPrefix + name;
+            result.push({ name: fullName, value });
         }
         return result;
     };
 }
 
-async function edit(context, editor, source, config, active) {
+async function edit(context, editor, source, locationId, config, updateConfig, active) {
     const original = editor.value;
     const sourceValue = source.value;
     const blocks = findBlocks(original);
     const panel = box('st-plist');
     panel.dataset.windowSize = windowSize(config);
     const heading = box('pl-heading');
+    const prefix = prefixFor(config, locationId);
+    const toggleLabel = box('pl-prefix-toggle', 'label');
+    const toggle = element('input');
+    toggle.type = 'checkbox';
+    toggle.checked = config.usePrefix !== false;
+    toggle.addEventListener('change', () => updateConfig({ usePrefix: toggle.checked }));
+    toggleLabel.title = prefix ? '新增属性前缀：' + prefix : '此区域的前缀为空，可在工具设置中修改';
+    toggleLabel.append(toggle, '添加前缀');
     const picker = element('select');
     picker.setAttribute('aria-label', '切换片段');
     const navigation = box('pl-navigation');
     const pickerBox = box('pl-picker');
     pickerBox.append(picker);
     navigation.append(pickerBox, iconButton('新增片段', 'block', () => addBlock([])));
-    heading.append(element('h3', 'PLists 编辑器'), navigation);
+    heading.append(element('h3', 'PLists 编辑器'), toggleLabel, navigation);
     panel.append(heading);
     const sections = element('div');
     const readers = [];
@@ -234,7 +253,7 @@ async function edit(context, editor, source, config, active) {
     function addBlock(rows) {
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
-        readers.push(rowList(section, rows, config.presets ?? defaults));
+        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked));
         sections.append(section);
         show(readers.length - 1);
     }
@@ -288,11 +307,35 @@ export const plistEditor = {
         size.addEventListener('change', () => { config.windowSize = Number(size.value); });
         sizeLabel.append(size);
         canvas.append(sizeLabel);
+        const prefixSettings = element('details');
+        prefixSettings.append(element('summary', '新增属性前缀'));
+        const prefixFields = [];
+        for (const { id, label } of locations) {
+            const field = element('label', label);
+            const input = element('input');
+            input.className = 'text_pole';
+            input.value = prefixFor(config, id);
+            input.placeholder = '无前缀';
+            input.addEventListener('input', () => {
+                config.prefixes ??= {};
+                config.prefixes[id] = input.value;
+            });
+            field.append(input);
+            prefixSettings.append(field);
+            prefixFields.push(input);
+        }
+        canvas.append(prefixSettings);
         canvas.append(element('h4', '常用属性与参数'));
         const section = box('st-plist');
         canvas.append(section);
         const read = rowList(section, config.presets ?? defaults);
         return () => {
+            for (const input of prefixFields) {
+                if (/[:：=;；\[\]]/u.test(input.value) || splitTraits(input.value) === null) {
+                    prefixSettings.open = true;
+                    return invalid(input, '请配对括号，并避开属性分隔符和方括号。');
+                }
+            }
             const presets = read();
             if (!presets) return false;
             config.presets = presets;
@@ -300,7 +343,7 @@ export const plistEditor = {
         };
     },
     onSettingsChanged() { refreshTool?.(); },
-    start(context, getConfig) {
+    start(context, getConfig, updateConfig) {
         const views = new Map();
         function refresh() {
             const config = getConfig();
@@ -317,7 +360,7 @@ export const plistEditor = {
                 const toolbar = getToolbar(editor);
                 const button = action('', () => {
                     if ([editor, source].some(node => node.matches(':disabled, [readonly]'))) return;
-                    void edit(context, editor, source, getConfig(), () => views.get(editor) === view);
+                    void edit(context, editor, source, location.id, getConfig(), updateConfig, () => views.get(editor) === view);
                 });
                 button.className = 'st-my-tweaks-plist-button';
                 button.title = '编辑 PLists';
