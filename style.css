@@ -581,3 +581,63 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 @container (max-width: 29em) {
     .st-plist .pl-sort-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+#chat.stmt-message-floating .mes_buttons .extraMesButtons { display: none !important; }
+#chat.stmt-message-floating .mes_buttons .extraMesButtonsHint {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    opacity: 1 !important;
+}
+@media (any-pointer: coarse) {
+    #chat.stmt-message-hold .mes {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    #chat.stmt-message-hold .mes :is(input, textarea, [contenteditable="true"]) {
+        -webkit-user-select: text;
+        user-select: text;
+    }
+}
+.stmt-message-menu {
+    position: fixed;
+    z-index: 10000;
+    box-sizing: border-box;
+    font-size: calc(.9rem * var(--stmt-menu-scale, 1));
+    width: min(18em, calc(100vw - 16px));
+    max-height: calc(100dvh / 3);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(8em, 100%), 1fr));
+    gap: 1px;
+    padding: .2em;
+    border: 1px solid var(--SmartThemeBorderColor, #666);
+    border-radius: 10px;
+    background: var(--SmartThemeBlurTintColor, #292929);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 5px 20px #0006;
+    color: var(--SmartThemeBodyColor, white);
+}
+.stmt-message-menu button, .stmt-inline-action {
+    display: flex;
+    align-items: center;
+    gap: .55em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    border: 0;
+}
+.stmt-message-menu button {
+    min-height: 2em;
+    gap: .3em;
+    padding: .15em .35em;
+    text-align: start;
+    overflow-wrap: anywhere;
+    border-radius: 6px;
+}
+.stmt-message-menu i { width: 1.2em; text-align: center; flex: none; }
+.stmt-message-menu button:is(:hover, :focus-visible) { background: var(--SmartThemeBorderColor, #555); }
