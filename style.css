@@ -157,14 +157,37 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 
 .st-plist h3 { margin: 0; font-size: 1.17em; }
 .st-plist .pl-navigation { margin-inline-start: auto; }
-.st-plist .pl-prefix-toggle {
+.st-plist .pl-toggle {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: .35em;
     white-space: nowrap;
     cursor: pointer;
 }
-.st-plist .pl-prefix-toggle input { width: 1em; height: 1em; padding: 0; }
+.st-plist .pl-toggle input { position: absolute; opacity: 0; width: 1em; height: 1em; }
+.st-plist .pl-check {
+    display: inline-grid;
+    place-items: center;
+    width: 1em;
+    height: 1em;
+    border: 1px solid currentColor;
+    border-radius: .2em;
+}
+.st-plist .pl-toggle input:checked + .pl-check {
+    background: var(--pl-accent);
+    color: #152821;
+    border-color: var(--pl-accent);
+}
+.st-plist .pl-toggle input:checked + .pl-check::after {
+    content: '';
+    width: .29em;
+    height: .55em;
+    border: solid currentColor;
+    border-width: 0 .14em .14em 0;
+    transform: translateY(-.07em) rotate(45deg);
+}
+.st-plist .pl-toggle input:focus-visible + .pl-check { outline: 2px solid currentColor; outline-offset: 2px; }
 .st-plist .pl-name-cell { min-width: 0; }
 .st-plist .pl-name-cell > small {
     display: block;

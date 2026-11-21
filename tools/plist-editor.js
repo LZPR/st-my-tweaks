@@ -228,13 +228,13 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     panel.dataset.windowSize = windowSize(config);
     const heading = box('pl-heading');
     const prefix = prefixFor(config, locationId);
-    const toggleLabel = box('pl-prefix-toggle', 'label');
+    const toggleLabel = box('pl-toggle', 'label');
     const toggle = element('input');
     toggle.type = 'checkbox';
     toggle.checked = config.usePrefix !== false;
     toggle.addEventListener('change', () => updateConfig({ usePrefix: toggle.checked }));
     toggleLabel.title = prefix ? '新增属性前缀：' + prefix : '此区域的前缀为空，可在工具设置中修改';
-    toggleLabel.append(toggle, '添加前缀');
+    toggleLabel.append(toggle, box('pl-check', 'span'), '添加前缀');
     const picker = element('select');
     picker.setAttribute('aria-label', '切换片段');
     const navigation = box('pl-navigation');
