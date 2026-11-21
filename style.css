@@ -654,4 +654,67 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     border-radius: 6px;
 }
 .stmt-message-menu i { width: 1.2em; text-align: center; flex: none; }
+
+#extensionsMenu > .stmt-route-entry {
+    appearance: none;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    padding: 5px;
+    border: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+.stmt-route-entry:focus-visible { opacity: 1; }
+dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
+.stmt-routes {
+    --route-accent: color-mix(in srgb, var(--SmartThemeBodyColor) 50%, #64bca9);
+    text-align: start;
+}
+.stmt-routes h3 { margin: 0; }
+.stmt-route-header, .stmt-route-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5em;
+}
+.stmt-route-header { justify-content: space-between; gap: .8em; }
+.stmt-routes [role="status"] { margin: .7em 0; font-size: .9em; }
+.stmt-routes .menu_button {
+    width: auto;
+    min-height: 2.15em;
+    margin: 0;
+    padding: .3em .7em;
+    white-space: nowrap;
+    font: inherit;
+}
+.stmt-routes .menu_button:disabled { opacity: .55; cursor: wait; }
+.stmt-routes .menu_button i { font-size: .85em; }
+.stmt-route-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(17em, 100%), 1fr));
+    gap: .65em;
+}
+.st-my-tweaks-route {
+    display: flex;
+    flex-direction: column;
+    gap: .65em;
+    min-width: 0;
+    padding: .85em 1em;
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    border-radius: .65em;
+    background: color-mix(in srgb, currentColor 5%, transparent);
+}
+.st-my-tweaks-route.is-selected {
+    border-color: var(--route-accent);
+    box-shadow: inset 3px 0 var(--route-accent);
+}
+.st-my-tweaks-route strong { font-size: .85em; }
+.stmt-route-text { line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.st-my-tweaks-route .stmt-route-actions { margin-top: auto; font-size: .9em; }
+.stmt-routes textarea { margin: .75em 0; }
 .stmt-message-menu button:is(:hover, :focus-visible) { background: var(--SmartThemeBorderColor, #555); }
