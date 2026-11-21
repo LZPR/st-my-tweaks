@@ -1,6 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
+import { parameterSelection } from './plist-selection.js';
 import { defaults, getPresets } from './plist-presets.js';
 
 let refreshTool;
@@ -306,7 +307,8 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
     })) };
 }
 
-async function edit(context, editor, source, locationId, config, updateConfig, active) {
+async function edit(context, editor, source, locationId, getConfig, updateConfig, active) {
+    const config = getConfig();
     const original = editor.value;
     const sourceValue = source.value;
     const blocks = findBlocks(original);
@@ -363,6 +365,103 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     hint.className = 'pl-sort-hint';
     let sorting = false;
     const readers = [];
+    const batch = box('pl-batch');
+    batch.hidden = true;
+    const selectedCount = element('strong');
+    const removeSelected = action('删除', () => {
+        const state = snapshot();
+        const index = picker.selectedIndex;
+        visitSelected(state, (row, values, chosen) => {
+            row.value = values.filter((_, i) => !chosen.has(i)).join(', ');
+        });
+        selection.exit();
+        restore(state, index);
+        record(undefined, index);
+    });
+    const storeSelected = action('加入词库', async () => {
+        const values = [];
+        visitSelected(snapshot(), (_, items, chosen) => {
+            for (const i of chosen) values.push(items[i]);
+        });
+        const presets = getPresets(getConfig());
+        const form = box('pl-library-target');
+        form.append(element('h3', '加入常用词库'));
+        const label = element('label', '目标属性');
+        const target = element('select');
+        presets.forEach((p, i) => target.append(new Option(p.name, String(i))));
+        target.append(new Option('新建属性…', 'new'));
+        const name = element('input');
+        name.className = 'text_pole';
+        name.placeholder = '新属性名称';
+        name.setAttribute('aria-label', name.placeholder);
+        const toggleName = () => { name.hidden = target.value !== 'new'; };
+        target.addEventListener('change', toggleName);
+        toggleName();
+        label.append(target);
+        form.append(label, name, element('p', '已选 ' + values.length + ' 个参数，重复项会自动跳过。'));
+        const result = await context.callGenericPopup(form, context.POPUP_TYPE.CONFIRM, '', {
+            okButton: '添加', cancelButton: '取消', leftAlign: true,
+            onClosing(popup) {
+                if (popup.result !== context.POPUP_RESULT.AFFIRMATIVE || target.value !== 'new') return true;
+                const text = name.value.trim();
+                return Boolean(text && !/[:：=;；\[\]\r\n]/u.test(maskMacros(text)) && splitTraits(text))
+                    || invalid(name, '请填写有效的词库属性名称。');
+            },
+        });
+        if (result !== context.POPUP_RESULT.AFFIRMATIVE || !panel.isConnected) return;
+        const next = structuredClone(getPresets(getConfig()));
+        const targetName = target.value === 'new' ? name.value.trim() : presets[Number(target.value)].name;
+        const attribute = next.find(row => row.name === targetName) ?? { name: targetName, value: '' };
+        const known = new Set((splitTraits(attribute.value) ?? []).map(v => unquote(v.trim())));
+        const additions = [];
+        for (const value of values) {
+            const text = unquote(value);
+            if (known.has(text)) continue;
+            known.add(text);
+            additions.push(value);
+        }
+        if (!next.includes(attribute)) next.push(attribute);
+        if (additions.length) {
+            attribute.value = [attribute.value, ...additions].filter(Boolean).join(', ');
+            updateConfig({ presets: next });
+        }
+        const state = snapshot();
+        selection.exit();
+        restore(state, picker.selectedIndex);
+        toastr.success('已添加 ' + additions.length + ' 个参数。', '常用词库');
+    });
+    batch.append(selectedCount, removeSelected, storeSelected, action('完成', () => selection.exit()));
+    const selection = parameterSelection(panel, sections, () => {
+        const current = picker.selectedIndex;
+        for (const [i, section] of readers.entries()) {
+            show(i);
+            if (!section.finish()) return false;
+        }
+        show(current);
+        return true;
+    }, (on, selected) => {
+        if (batch.hidden === on) {
+            batch.hidden = !on;
+            for (const el of [undo, redo, organize, newBlock, toggleLabel, quoteLabel,
+                ...sections.querySelectorAll('.pl-name-cell, .pl-icon, .pl-add-row')]) el.inert = on;
+        }
+        selectedCount.textContent = '已选 ' + selected.size + ' 项';
+        removeSelected.disabled = storeSelected.disabled = selected.size === 0;
+    });
+    function visitSelected(state, visit) {
+        Array.from(sections.children).forEach((section, b) => {
+            section.querySelectorAll('.pl-row').forEach((line, r) => {
+                const chosen = new Set();
+                line.querySelectorAll('.pl-chip').forEach((chip, i) => {
+                    if (selection.selected.has(chip)) chosen.add(i);
+                });
+                if (!chosen.size) return;
+                const row = state[b][r];
+                const values = (splitTraits(row.value) ?? [row.value]).map(v => v.trim()).filter(Boolean);
+                visit(row, values, chosen);
+            });
+        });
+    }
     let listeners = new AbortController();
     const history = [];
     let position = -1;
@@ -428,6 +527,14 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     }
     quoteToggle.addEventListener('change', () => { if (sorting) paintSort(); });
     panel.addEventListener('keydown', event => {
+        if (selection.active) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                selection.exit();
+            }
+            return;
+        }
         if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
         const key = event.key.toLowerCase();
         if (key !== 'z' && key !== 'y') return;
@@ -444,7 +551,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
         const index = readers.length;
-        readers.push(rowList(section, rows, getPresets(config), prefix, () => toggle.checked, quoteToggle,
+        readers.push(rowList(section, rows, getPresets(getConfig()), prefix, () => toggle.checked, quoteToggle,
             group => record(group, index), listeners.signal));
         sections.append(section);
         show(readers.length - 1);
@@ -453,7 +560,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     if (!blocks.length) addBlock([]);
     show(0);
     record();
-    panel.append(sections, sortPanel);
+    panel.append(sections, batch, sortPanel);
     const writable = () => active() && editor.isConnected && source.isConnected &&
         ![editor, source].some(node => node.matches(':disabled, [readonly]')) &&
         original === editor.value && sourceValue === source.value;
@@ -463,6 +570,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         okButton: '保存', cancelButton: '取消', leftAlign: true, allowVerticalScrolling: true,
         onClosing(popup) {
             if (popup.result !== context.POPUP_RESULT.AFFIRMATIVE) return true;
+            if (selection.active) selection.exit();
             if (!writable()) {
                 toastr.error(sourceChanged, 'PLists 编辑器');
                 return false;
@@ -615,7 +723,7 @@ export const plistEditor = {
                 const toolbar = getToolbar(editor);
                 const button = action('', () => {
                     if ([editor, source].some(node => node.matches(':disabled, [readonly]'))) return;
-                    void edit(context, editor, source, location.id, getConfig(), updateConfig, () => views.get(editor) === view);
+                    void edit(context, editor, source, location.id, getConfig, updateConfig, () => views.get(editor) === view);
                 });
                 button.className = 'st-my-tweaks-plist-button';
                 button.title = '编辑 PLists';

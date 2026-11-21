@@ -370,6 +370,29 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     margin-block: .65em;
 }
 .pl-library-actions > .menu_button { width: auto; white-space: nowrap; }
+.st-plist .pl-batch {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45em;
+    padding: .45em;
+    background: var(--SmartThemeBlurTintColor, Canvas);
+    border: 1px solid var(--pl-line);
+    border-radius: 6px;
+}
+.st-plist .pl-batch .menu_button { width: auto; white-space: nowrap; }
+.st-plist .pl-chip { user-select: none; -webkit-touch-callout: none; }
+.st-plist.pl-selecting .pl-chip { touch-action: none; }
+.st-plist.pl-selecting .pl-chip[aria-pressed="true"] {
+    background: var(--pl-accent);
+    color: #152821;
+    border-color: var(--pl-accent);
+}
+.st-plist.pl-selecting [inert] { opacity: .55; }
+.pl-library-target label { display: grid; gap: .3em; }
 
 .st-plist .pl-icon[aria-pressed="true"],
 .st-plist .pl-sort .pl-picked {
