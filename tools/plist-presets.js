@@ -1,7 +1,6 @@
-export const defaults = [
-    { name: '性别', value: '男, 女, 非二元, 无性别' },
-    { name: '外貌', value: '长发, 短发, 卷发, 直发, 光头, 黑发, 金发, 银发, 异色瞳, 浓眉, 鹰钩鼻, 雀斑, 酒窝, 胡须, 黝黑肤色, 苍白肤色, 刺青, 伤疤, 高挑, 矮小, 纤细, 壮硕, 圆润' },
-    { name: '性格', value: '活泼, 腼腆, 温和, 冷静, 急躁, 好奇, 固执, 谨慎, 豪爽, 多疑, 自负, 谦逊, 悲观, 乐观, 叛逆, 务实, 浪漫, 好胜, 宽容, 记仇' },
+const gender = { name: '性别', value: '男, 女, 非二元, 无性别' };
+const originalPersonality = '活泼, 腼腆, 温和, 冷静, 急躁, 好奇, 固执, 谨慎, 豪爽, 多疑, 自负, 谦逊, 悲观, 乐观, 叛逆, 务实, 浪漫, 好胜, 宽容, 记仇';
+const otherAttributes = [
     { name: '年龄阶段', value: '幼儿, 儿童, 少年, 青年, 中年, 老年' },
     { name: '衣着', value: '正装, 校服, 工装, 运动服, 长袍, 盔甲, 风衣, 皮夹克, 斗篷, 百褶裙, 牛仔裤, 高筒靴, 凉鞋, 刺绣, 拼布, 褪色, 剪裁合身' },
     { name: '随身物品', value: '怀表, 笔记本, 吊坠, 眼镜, 手杖, 指南针, 雨伞, 相机, 钥匙串, 地图, 怀炉, 护身符' },
@@ -23,16 +22,51 @@ export const defaults = [
     { name: '事件', value: '重逢, 失踪, 宴会, 交易, 比赛, 停电, 搬迁, 误会, 告别, 远征, 审判, 加冕, 逃亡, 灾后重建' },
 ];
 
+const characterDefaults = [
+    gender,
+    { name: '外貌', value: '清秀, 明艳, 英气, 粗犷, 儒雅, 威严, 朴素, 精致, 稚气, 老成, 病弱感, 饱经风霜, 书卷气, 少年感, 人偶感, 非人感, 轮廓柔和, 线条硬朗, 高挑, 矮小, 纤细, 壮硕, 圆润' },
+    { name: '性格', value: originalPersonality + ', 耐心, 果断, 随和, 慢热, 敏感, 洒脱, 怯懦, 耿直, 圆滑, 体贴, 自律, 散漫, 多情, 专一, 洁癖, 爱面子, 讲义气, 护短, 爱冒险, 优柔寡断, 患得患失, 完美主义, 独来独往, 讨好型, 控制欲强, 边界感强, 仪式感强, 守时, 容易心软, 苦中作乐, 傲娇, 腹黑, 天然呆, 中二, 乐子人, 自来熟, 戏精, 吐槽役, 念旧, 钻牛角尖' },
+    { name: '经历', value: '在海边小镇长大, 随商队四处迁徙, 靠奖学金完成学业, 替家人守过旧书店, 从学徒升为师傅, 退役后改行行医, 曾因误判错失救援, 与昔日搭档分道扬镳, 失散多年后与手足重逢, 在异国从头谋生, 曾以笔名连载漫画, 第一次上台就忘了词, 组过一支地下乐队, 作为替补赢下决赛, 因一段直播意外走红, 从偶像团体毕业, 在废弃车站醒来, 曾为对立阵营送信, 从时间循环中脱身, 带着前世记忆转生, 被召唤到异世界, 曾与妖怪订下契约, 在太空站度过童年, 修复过一台失忆的仿生人' },
+
+    { name: '面部', value: '鹅蛋脸, 方脸, 圆脸, 长脸, 高颧骨, 面颊丰润, 双颊凹陷, 下颌棱角分明, 尖下巴, 酒窝, 美人沟下巴, 胡须' },
+    { name: '头发', value: '长发, 短发, 卷发, 直发, 光头, 黑发, 金发, 银发, 挑染, 渐变发色, 自然蓬松, 贴头皮, 齐刘海, 中分, 狼尾, 双马尾, 麻花辫, 丸子头, 姬发式, 呆毛' },
+    { name: '眉眼', value: '浓眉, 细眉, 剑眉, 断眉, 杏眼, 丹凤眼, 下垂眼, 单眼皮, 内双, 睫毛纤长, 眼窝深陷, 琥珀瞳, 灰蓝瞳, 异色瞳, 竖瞳, 星形瞳孔' },
+    { name: '鼻唇', value: '高鼻梁, 塌鼻梁, 鹰钩鼻, 翘鼻尖, 鼻头圆润, 薄唇, 厚唇, 唇峰分明, 嘴角上扬, 唇色浅淡, 虎牙, 门牙有缝' },
+    { name: '耳部', value: '招风耳, 贴耳, 耳垂饱满, 耳尖微翘, 精灵长耳, 猫耳, 垂兔耳, 鱼鳍状耳, 耳廓有缺口' },
+    { name: '颈肩与躯干', value: '颈项修长, 锁骨突出, 宽肩, 窄肩, 溜肩, 平肩, 背阔, 胸膛厚实, 腰腹紧实, 小腹微凸, 蜂腰, 胯宽' },
+    { name: '四肢', value: '双臂修长, 前臂结实, 肘部粗糙, 腕骨突出, 大腿健壮, 小腿匀称, 长腿, 膝盖内扣, 脚踝纤细, 机械义肢' },
+    { name: '手足', value: '手掌宽厚, 指节分明, 指尖有茧, 手指细长, 指甲剪得很短, 蹼指, 肉垫, 足弓高, 扁平足, 脚背青筋明显' },
+    { name: '皮肤与体表', value: '黝黑肤色, 苍白肤色, 蜜色皮肤, 冷白皮, 雀斑, 泪痣, 胎记, 刺青, 伤疤, 晒痕, 鳞片, 绒毛, 发光纹路, 人偶接缝' },
+    ...otherAttributes,
+];
+
+export const defaults = [
+    ...characterDefaults,
+    { name: '角色属性', value: '萝莉, 正太, 御姐, 大叔, 美少年, 大小姐, 女仆, 执事, 大和抚子, 王子系, 魔法少女, 看板娘, 吉祥物, 幼驯染' },
+    { name: '萌点', value: '反差萌, 三无, 冒失娘, 隐藏宅, 电波系, 元气系, 治愈系, 怕生却黏人, 害羞时炸毛, 紧张时用敬语, 口癖喵, 路痴, 料理苦手' },
+    { name: '偏爱对象', value: '兄控, 弟控, 姐控, 妹控, 猫控, 犬控, 毛绒控, 眼镜控, 制服控, 机械控' },
+    { name: '人外原型', value: '猫娘, 犬娘, 狐娘, 狼少年, 龙娘, 鸟人, 人鱼, 半人马, 史莱姆, 树精, 雪女, 付丧神' },
+    { name: '拟人原型', value: '舰船拟人, 刀剑拟人, 列车拟人, 乐器拟人, 书籍拟人, 玩偶拟人, 甜点拟人, 花卉拟人, 星座拟人, 季节拟人, 城市拟人, 软件拟人' },
+    { name: '拟人化表现', value: '兽耳随声音转动, 尾巴泄露心情, 护翼遮雨, 受惊时缩回原形, 发梢随花期变色, 以年轮计龄, 发条驱动心跳, 用电量形容体力, 把睡眠称作待机, 记忆按页码排列, 开口自带报站音, 情绪化作天气' },
+];
+
 // Earlier versions saved these defaults even when only an unrelated setting changed.
-const previousDefaults = [
+const starterDefaults = [
     { name: '性别', value: '男, 女' },
     { name: '外貌', value: '长发, 短发, 卷发, 直发' },
     { name: '性格', value: '活泼, 腼腆, 温和, 冷静' },
 ];
+const previousDefaults = [
+    gender,
+    { name: '外貌', value: '长发, 短发, 卷发, 直发, 光头, 黑发, 金发, 银发, 异色瞳, 浓眉, 鹰钩鼻, 雀斑, 酒窝, 胡须, 黝黑肤色, 苍白肤色, 刺青, 伤疤, 高挑, 矮小, 纤细, 壮硕, 圆润' },
+    { name: '性格', value: originalPersonality },
+    ...otherAttributes,
+];
 
 export function getPresets({ presets }) {
     if (presets == null) return defaults;
-    const savedDefaults = presets.length === previousDefaults.length && previousDefaults.every((row, index) =>
-        row.name === presets[index]?.name && row.value === presets[index]?.value);
+    const savedDefaults = [starterDefaults, previousDefaults, characterDefaults].some(version =>
+        presets.length === version.length && version.every((row, index) =>
+            row.name === presets[index]?.name && row.value === presets[index]?.value));
     return savedDefaults ? defaults : presets;
 }
