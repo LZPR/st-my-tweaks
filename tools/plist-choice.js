@@ -6,6 +6,8 @@ export function openChoice({ title, labels, allowCustom = false, choose }) {
     const header = document.createElement('header');
     const heading = document.createElement('h3');
     heading.textContent = title;
+    heading.tabIndex = -1;
+    heading.autofocus = true;
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'pl-choice-close';
@@ -17,7 +19,6 @@ export function openChoice({ title, labels, allowCustom = false, choose }) {
     const search = document.createElement('input');
     search.type = 'search';
     search.className = 'text_pole';
-    search.autofocus = true;
     search.placeholder = allowCustom ? '搜索或输入属性名称' : '搜索参数';
     search.setAttribute('aria-label', search.placeholder);
     const results = document.createElement('div');
