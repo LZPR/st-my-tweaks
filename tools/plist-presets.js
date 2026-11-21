@@ -22,3 +22,17 @@ export const defaults = [
     { name: '氛围', value: '宁静, 喧闹, 温馨, 肃穆, 喜庆, 荒凉, 紧张, 压抑, 诡异, 梦幻, 怀旧, 尴尬' },
     { name: '事件', value: '重逢, 失踪, 宴会, 交易, 比赛, 停电, 搬迁, 误会, 告别, 远征, 审判, 加冕, 逃亡, 灾后重建' },
 ];
+
+// Earlier versions saved these defaults even when only an unrelated setting changed.
+const previousDefaults = [
+    { name: '性别', value: '男, 女' },
+    { name: '外貌', value: '长发, 短发, 卷发, 直发' },
+    { name: '性格', value: '活泼, 腼腆, 温和, 冷静' },
+];
+
+export function getPresets({ presets }) {
+    if (presets == null) return defaults;
+    const savedDefaults = presets.length === previousDefaults.length && previousDefaults.every((row, index) =>
+        row.name === presets[index]?.name && row.value === presets[index]?.value);
+    return savedDefaults ? defaults : presets;
+}

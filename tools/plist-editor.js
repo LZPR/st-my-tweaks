@@ -1,7 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
-import { defaults } from './plist-presets.js';
+import { getPresets } from './plist-presets.js';
 
 let refreshTool;
 let nextParameterEdit = 0;
@@ -436,7 +436,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
         const index = readers.length;
-        readers.push(rowList(section, rows, config.presets ?? defaults, prefix, () => toggle.checked, quoteToggle,
+        readers.push(rowList(section, rows, getPresets(config), prefix, () => toggle.checked, quoteToggle,
             group => record(group, index), listeners.signal));
         sections.append(section);
         show(readers.length - 1);
@@ -517,7 +517,7 @@ export const plistEditor = {
         canvas.append(element('h4', '常用属性与参数'));
         const section = box('st-plist');
         canvas.append(section);
-        const { read } = rowList(section, config.presets ?? defaults);
+        const { read } = rowList(section, getPresets(config));
         return () => {
             for (const input of prefixFields) {
                 if (/[:：=;；\[\]]/u.test(input.value) || splitTraits(input.value) === null) {
