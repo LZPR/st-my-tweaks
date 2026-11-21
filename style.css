@@ -126,6 +126,19 @@
 }
 .st-name-filters :is(h3, h4, p) { margin: 0; }
 .st-name-filters .nf-header { padding: .25em 0 .9em; }
+.st-name-filters .nf-title-row { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
+.st-name-filters .nf-reset {
+    margin-inline-start: auto;
+    padding: .2em .65em;
+    border: 1px solid var(--nf-line);
+    border-radius: .5em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: .84em;
+    cursor: pointer;
+}
+.st-name-filters .nf-reset:disabled { opacity: .6; border-color: transparent; cursor: default; }
 .st-name-filters h3 { font-size: 1.2em; }
 .st-name-filters .nf-muted { margin-top: .35em; opacity: .75; font-size: .87em; }
 .st-name-filters .nf-section { padding: .7em 0; border-top: 1px solid var(--nf-line); }

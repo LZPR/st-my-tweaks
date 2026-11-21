@@ -35,12 +35,25 @@ function surnamePicker(grid, values, selected) {
     return { details, refresh };
 }
 
+function resetButton(text, label, action) {
+    const button = element('button', 'nf-reset', text);
+    button.type = 'button';
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', action);
+    return button;
+}
+
 export async function editFilters(context, library, filters) {
     const content = element('div', 'st-name-filters');
     const header = element('header', 'nf-header');
     const title = element('h3', '', '随机取名条件');
     const help = element('p', 'nf-muted', '每项可多选，姓名字数包含姓氏。');
-    header.append(title, help);
+    const clearGroups = [];
+    const resetAll = resetButton('全部不限', '清除所有取名条件', () => clearGroups.forEach(clear => clear()));
+    const refreshAll = () => resetAll.disabled = Object.values(filters).every(values => !values.length);
+    const titleRow = element('div', 'nf-title-row');
+    titleRow.append(title, resetAll);
+    header.append(titleRow, help);
     content.append(header);
     for (const [key, values] of Object.entries(filterOptions(library))) {
         const section = element('section', 'nf-section');
@@ -51,6 +64,20 @@ export async function editFilters(context, library, filters) {
         grid.setAttribute('aria-label', labels[key]);
         const selected = filters[key];
         const picker = key === 'surname' ? surnamePicker(grid, values, selected) : null;
+        function refresh() {
+            reset.disabled = !selected.length;
+            picker?.refresh();
+            refreshAll();
+        }
+        function clear() {
+            selected.length = 0;
+            for (const button of grid.children) button.setAttribute('aria-pressed', 'false');
+            refresh();
+        }
+        clearGroups.push(clear);
+        const reset = resetButton('不限', `清除${labels[key]}条件`, clear);
+        heading.append(reset);
+        refresh();
         for (const value of values) {
             const button = element('button', 'nf-option', key === 'length' ? `${value} 字` : value);
             button.type = 'button';
@@ -60,7 +87,7 @@ export async function editFilters(context, library, filters) {
                 if (index < 0) selected.push(value);
                 else selected.splice(index, 1);
                 button.setAttribute('aria-pressed', String(index < 0));
-                picker?.refresh();
+                refresh();
             });
             grid.append(button);
         }
