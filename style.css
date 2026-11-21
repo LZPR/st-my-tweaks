@@ -400,9 +400,67 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     background: var(--pl-surface);
 }
 .st-plist .pl-drawer textarea { flex: 1 1 8em; resize: vertical; }
-.st-plist .pl-drawer select { flex-basis: 100%; }
 .st-plist .pl-add-row { padding: .7em .45em 0; }
-.st-plist .pl-add-row select { color: inherit; }
+.st-plist .pl-choice-trigger {
+    width: auto;
+    padding: .4em .8em;
+    border: 1px solid var(--pl-line);
+    border-radius: .55em;
+    background: var(--pl-surface);
+    color: inherit;
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.st-plist .pl-choice-trigger::before { content: '+'; margin-inline-end: .45em; color: var(--pl-accent); }
+.st-plist .pl-choice-trigger:hover { border-color: var(--pl-accent); }
+.st-plist-choice {
+    box-sizing: border-box;
+    width: min(38rem, 94vw);
+    max-height: 85dvh;
+    margin: auto;
+    padding: clamp(.8rem, 2.5vw, 1.4rem);
+    border: 1px solid var(--SmartThemeBorderColor, #626863);
+    border-radius: .9rem;
+    background: var(--SmartThemeBlurTintColor, Canvas);
+    backdrop-filter: blur(20px);
+    color: var(--SmartThemeBodyColor, CanvasText);
+    font: inherit;
+    box-shadow: 0 .8rem 3rem #0006;
+}
+.st-plist-choice[open] { display: flex; flex-direction: column; gap: .75rem; }
+.st-plist-choice::backdrop { background: #0008; }
+.st-plist-choice header { display: flex; align-items: center; justify-content: space-between; }
+.st-plist-choice h3 { margin: 0; font-size: 1.15em; }
+.st-plist-choice input[type="search"] { box-sizing: border-box; width: 100%; margin: 0; min-height: 2.65em; padding-inline: .8em; }
+.st-plist-choice button {
+    min-width: 0;
+    width: auto;
+    min-height: 2.65em;
+    margin: 0;
+    padding: .45em .6em;
+    border: 1px solid color-mix(in srgb, currentColor 23%, transparent);
+    border-radius: .55em;
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    color: inherit;
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.st-plist-choice button:hover { background: color-mix(in srgb, #91cbbb 19%, transparent); }
+.st-plist-choice :is(button, input):focus-visible { outline: 2px solid #91cbbb; outline-offset: -2px; }
+.st-plist-choice .pl-choice-close { min-height: 1.7em; width: 1.7em; padding: 0; font-size: 1.25em; border: 0; background: transparent; }
+.st-plist-choice .pl-choice-results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(6em, 45%), 1fr));
+    align-content: start;
+    gap: .5em;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.st-plist-choice p { margin: 0; padding: .7em; text-align: center; opacity: .75; }
+.st-plist-choice [hidden] { display: none; }
+.st-plist-choice .pl-choice-custom { border-style: dashed; }
 
 @container (width > 29em) {
     .st-plist .pl-name-cell { display: contents; }

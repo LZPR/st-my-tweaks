@@ -1,6 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
+import { openChoice } from './plist-choice.js';
 import { parameterSelection } from './plist-selection.js';
 import { defaults, getPresets } from './plist-presets.js';
 
@@ -64,17 +65,11 @@ function box(className, tag = 'div') {
     return node;
 }
 
-function options(label, items, choose) {
-    const select = element('select');
-    select.setAttribute('aria-label', label);
-    select.append(new Option(label, ''));
-    items.forEach((item, i) => select.append(new Option(item, String(i))));
-    select.addEventListener('change', () => {
-        const index = select.selectedIndex - 1;
-        select.selectedIndex = 0;
-        if (index >= 0) choose(index);
-    });
-    return select;
+function choiceButton(title, labels, choose, allowCustom = false) {
+    const button = action(title, () => openChoice({ title, labels, choose, allowCustom }));
+    button.className = 'pl-choice-trigger';
+    button.setAttribute('aria-haspopup', 'dialog');
+    return button;
 }
 
 function invalid(input, message) {
@@ -203,13 +198,13 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const cancel = () => { close(); changed?.(group); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
             const renderChoices = () => {
-                drawer.querySelector('select')?.remove();
+                drawer.querySelector('.pl-choice-trigger')?.remove();
                 if (editing) return;
                 const name = key.value.trim();
                 const preset = presets.find(p => p.name === name)
                     ?? presets.find(p => prefix && prefix + p.name === name);
                 const choices = (splitTraits(preset?.value ?? '') ?? []).map(v => v.trim()).filter(v => v && !items.includes(v));
-                if (choices.length) drawer.append(options('选择常用参数…', choices.map(display), i => {
+                if (choices.length) drawer.append(choiceButton('选择常用参数', choices.map(display), i => {
                     raw = choices[i];
                     input.value = display(raw);
                     commitFocus();
@@ -278,12 +273,12 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const matchesPrefix = suffix && suffix === suffix.trim() && !suffix.startsWith(prefix);
         add(row, matchesPrefix ? prefix : '');
     }
-    const addRow = options('添加属性…', ['自定义属性', ...presets.map(p => p.name)], i => {
+    const addRow = choiceButton('添加属性', presets.map(p => p.name), (i, text) => {
         if (finish()) {
-            add({ name: presets[i - 1]?.name ?? '' }, usePrefix() ? prefix : '').focus();
+            add({ name: presets[i]?.name ?? text }, usePrefix() ? prefix : '').focus();
             changed?.();
         }
-    });
+    }, true);
     const foot = box('pl-add-row');
     foot.append(addRow);
     container.append(header, list, foot);
