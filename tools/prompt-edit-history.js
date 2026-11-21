@@ -1,63 +1,7 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
 
-const quickPromptSelector = '#ai_response_configuration textarea[data-pm-prompt]';
-const promptManagerEditorSelector = 'textarea#completion_prompt_manager_popup_entry_form_prompt';
-const responsePresetSelectors = new Map([
-    ['openai', [
-        quickPromptSelector,
-        promptManagerEditorSelector,
-        ...[
-            'impersonation_prompt_textarea',
-            'wi_format_textarea',
-            'scenario_format_textarea',
-            'personality_format_textarea',
-            'group_nudge_prompt_textarea',
-            'newchat_prompt_textarea',
-            'newgroupchat_prompt_textarea',
-            'newexamplechat_prompt_textarea',
-            'continue_nudge_prompt_textarea',
-            'send_if_empty_textarea',
-            'claude_assistant_prefill',
-            'claude_assistant_impersonation',
-        ].map(id => `#ai_response_configuration textarea#${id}`),
-    ].join(', ')],
-    ['novel', '#ai_response_configuration textarea#nai_preamble_textarea'],
-    ['textgenerationwebui', '#ai_response_configuration textarea#negative_prompt_textgenerationwebui'],
-]);
-const locations = [
-    {
-        id: 'character',
-        label: '角色管理',
-        selector: [
-            'textarea#description_textarea',
-            'textarea#firstmessage_textarea',
-            'textarea#personality_textarea',
-            'textarea#scenario_pole',
-            'textarea#mes_example_textarea',
-            'textarea#system_prompt_textarea',
-            'textarea#post_history_instructions_textarea',
-            'textarea#depth_prompt_prompt',
-            '.alternate_greetings_list textarea.alternate_greeting_text',
-        ].join(', '),
-    },
-    {
-        id: 'persona',
-        label: '用户角色管理',
-        selector: 'textarea#persona_description',
-    },
-    {
-        id: 'worldInfo',
-        label: '世界书',
-        selector: '#world_popup_entries_list .world_entry textarea[name="content"]',
-    },
-    {
-        id: 'aiResponse',
-        label: 'AI 响应配置',
-        selector: [...responsePresetSelectors.values()].join(', '),
-    },
-];
-const expandedSelector = 'textarea.maximized_textarea[data-for]';
-const editorSelector = [...locations.map(location => location.selector), expandedSelector].join(', ');
+import { quickPromptSelector, promptManagerEditorSelector, responsePresetSelectors, editorSelector, isEnabled, renderLocations, getToolbar, locateEditor, editorsChanged } from './prompt-toolbar.js';
+
 const maxUndoSteps = 100;
 const deletionGroupDelay = 750;
 const groupedDeletionTypes = new Set(['deleteContentBackward', 'deleteContentForward', 'deleteWordBackward', 'deleteWordForward']);
@@ -175,12 +119,7 @@ function applyAction(history, editor, action) {
 function attachView(history, editor) {
     const listeners = new AbortController();
     const options = { signal: listeners.signal };
-    const toolbar = document.createElement('div');
-    toolbar.className = 'st-my-tweaks-prompt-history';
-    toolbar.setAttribute('role', 'group');
-    toolbar.setAttribute('aria-label', '提示词编辑历史');
-    toolbar.addEventListener('pointerdown', event => event.preventDefault(), options);
-
+    const toolbar = getToolbar(editor);
     const buttons = {};
     for (const { id, label, icon } of actions) {
         const button = document.createElement('button');
@@ -195,7 +134,6 @@ function attachView(history, editor) {
         buttons[id] = button;
         toolbar.append(button);
     }
-    editor.before(toolbar);
 
     const endDeletion = () => { history.lastDeletion = null; };
     editor.addEventListener('focus', () => syncSource(history), options);
@@ -250,7 +188,9 @@ function attachView(history, editor) {
                 endDeletion();
             }
             listeners.abort();
-            toolbar.remove();
+            for (const button of Object.values(buttons)) button.remove();
+            toolbar.style.removeProperty('--st-my-tweaks-prompt-history-scale');
+            if (!toolbar.childElementCount) toolbar.remove();
         },
     });
     syncSource(history);
@@ -258,22 +198,8 @@ function attachView(history, editor) {
     return toolbar;
 }
 
-function isEnabled(location, config) {
-    return config[location.id] !== false;
-}
-
 function renderSettings(canvas, config) {
-    canvas.classList.add('flex-container', 'flexFlowColumn');
-    for (const location of locations) {
-        const label = document.createElement('label');
-        label.className = 'checkbox_label';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = isEnabled(location, config);
-        checkbox.addEventListener('change', () => { config[location.id] = checkbox.checked; });
-        label.append(checkbox, location.label);
-        canvas.append(label);
-    }
+    renderLocations(canvas, config);
     canvas.append(createToolbarScaleSetting(config, '工具栏缩放'));
 }
 
@@ -306,8 +232,7 @@ export const promptEditHistory = {
             }
 
             for (const editor of document.querySelectorAll(editorSelector)) {
-                const source = editor.matches(expandedSelector) ? document.getElementById(editor.dataset.for) : editor;
-                const location = locations.find(item => source?.matches(item.selector));
+                const { source, location } = locateEditor(editor);
                 if (!location || !isEnabled(location, config)) {
                     continue;
                 }
@@ -367,8 +292,7 @@ export const promptEditHistory = {
                     rebase(history);
                 }
             }
-            if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node =>
-                node instanceof Element && (node.matches(editorSelector) || node.querySelector(editorSelector))))) {
+            if (editorsChanged(records)) {
                 refresh();
             }
         });
