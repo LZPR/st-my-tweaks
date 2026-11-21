@@ -353,3 +353,52 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 }
 
 .st-my-tweaks-plist-button { margin-inline-end: auto; }
+
+.st-plist .pl-icon[aria-pressed="true"],
+.st-plist .pl-sort .pl-picked {
+    background: var(--pl-accent);
+    color: #152821;
+}
+.st-plist .pl-sort-hint { font-size: .85em; margin: .5em 0; }
+.st-plist .pl-sort section { border-top: 1px solid var(--pl-line); padding: .65em 0; }
+.st-plist .pl-sort h4 { margin: 0 0 .45em; }
+.st-plist .pl-sort-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr);
+    align-items: start;
+    gap: .55em;
+    padding: .35em 0;
+}
+.st-plist .pl-sort-values {
+    min-height: 2em;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: .3em;
+    border: 1px dashed var(--pl-line);
+    border-radius: 5px;
+    padding: .2em;
+}
+.st-plist .pl-sort button {
+    width: auto;
+    max-width: 100%;
+    padding: .3em .55em;
+    border: 1px solid var(--pl-line);
+    border-radius: 5px;
+    background: var(--pl-surface);
+    text-align: start;
+    overflow-wrap: anywhere;
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+}
+.st-plist .pl-sort .pl-sort-end { cursor: pointer; font-size: .82em; border-style: dashed; }
+.st-plist .pl-sort-key::before { content: '⠿'; margin-inline-end: .4em; opacity: .65; }
+.st-plist .pl-sort [data-drop="inside"] { outline: 2px solid var(--pl-accent); }
+.st-plist .pl-sort-item[data-drop="before"] { box-shadow: -3px 0 var(--pl-accent); }
+.st-plist .pl-sort-item[data-drop="after"] { box-shadow: 3px 0 var(--pl-accent); }
+.st-plist .pl-sort-key[data-drop="before"] { box-shadow: 0 -3px var(--pl-accent); }
+.st-plist .pl-sort-key[data-drop="after"] { box-shadow: 0 3px var(--pl-accent); }
+@container (max-width: 29em) {
+    .st-plist .pl-sort-row { grid-template-columns: minmax(0, 1fr); }
+}

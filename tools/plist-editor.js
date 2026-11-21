@@ -1,5 +1,6 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { findBlocks, splitTraits, writeBlocks } from './plist-format.js';
+import { sortView } from './plist-sort.js';
 import { defaults } from './plist-presets.js';
 
 let refreshTool;
@@ -37,6 +38,7 @@ const paths = {
     close: 'm6 6 12 12M6 18 18 6',
     undo: 'M9 4 3 10l6 6M3 10h11a6 6 0 0 1 0 12',
     redo: 'm15 4 6 6-6 6m6-6H10a6 6 0 0 0 0 12',
+    sort: 'M6 3v18m-4-14 4-4 4 4m4 10 4 4 4-4M18 3v18',
 };
 
 function iconButton(label, icon, run) {
@@ -295,7 +297,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         }
         return result;
     }
-    return { read, snapshot: () => rows.map(row => ({
+    return { read, finish, snapshot: () => rows.map(row => ({
         name: row.key.value, appliedPrefix: row.appliedPrefix, value: row.read(), draft: row.draft?.(),
     })) };
 }
@@ -328,13 +330,31 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     pickerBox.append(picker);
     const undo = iconButton('撤销', 'undo', () => travel(-1));
     const redo = iconButton('重做', 'redo', () => travel(1));
-    navigation.append(undo, redo, pickerBox, iconButton('新增片段', 'block', () => {
+    const organize = iconButton('整理模式', 'sort', () => {
+        if (!sorting) {
+            const current = picker.selectedIndex;
+            for (const [i, section] of readers.entries()) {
+                show(i);
+                if (!section.finish()) return;
+            }
+            show(current);
+        }
+        setSorting(!sorting);
+    });
+    organize.setAttribute('aria-pressed', 'false');
+    const newBlock = iconButton('新增片段', 'block', () => {
         addBlock([]);
         record();
-    }));
+    });
+    navigation.append(undo, redo, organize, pickerBox, newBlock);
     heading.append(element('h3', 'PLists 编辑器'), toggleLabel, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
+    const sortPanel = element('div');
+    sortPanel.hidden = true;
+    const hint = element('p', '拖动属性或参数可跨组排序。也可先点选一项，再点选插入位置。');
+    hint.className = 'pl-sort-hint';
+    let sorting = false;
     const readers = [];
     let listeners = new AbortController();
     const history = [];
@@ -344,7 +364,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         redo.disabled = position >= history.length - 1;
     }
     function record(group, index = picker.selectedIndex) {
-        const state = JSON.stringify(readers.map(section => section.snapshot()));
+        const state = JSON.stringify(snapshot());
         if (history[position]?.state === state) return;
         history.splice(position + 1);
         if (position > 0 && group && history[position].group === group && history[position].index === index) {
@@ -363,17 +383,42 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
         if (!history[next]) return;
         const index = history[Math.max(position, next)].index;
         position = next;
+        const state = JSON.parse(history[position].state);
+        if (sorting && state.some(rows => rows.some(row => row.draft))) setSorting(false);
+        restore(state, Math.min(index, state.length - 1));
+        if (sorting) paintSort();
+        updateButtons();
+        const focusUndo = redo.disabled || (direction < 0 && !undo.disabled);
+        (focusUndo ? undo : redo).focus();
+    }
+    function snapshot() {
+        return readers.map(section => section.snapshot());
+    }
+    function restore(state, index) {
         listeners.abort();
         listeners = new AbortController();
         sections.replaceChildren();
         picker.replaceChildren();
         readers.length = 0;
-        JSON.parse(history[position].state).forEach(addBlock);
-        show(Math.min(index, readers.length - 1));
-        updateButtons();
-        const focusUndo = redo.disabled || (direction < 0 && !undo.disabled);
-        (focusUndo ? undo : redo).focus();
+        state.forEach(addBlock);
+        show(index);
     }
+    function paintSort() {
+        sortPanel.replaceChildren(hint, sortView(snapshot(), raw => quoteToggle.checked ? unquote(raw) : raw, (state, index) => {
+            restore(state, index);
+            record(undefined, index);
+            paintSort();
+        }));
+    }
+    function setSorting(on) {
+        sorting = on;
+        organize.setAttribute('aria-pressed', String(on));
+        sections.hidden = pickerBox.hidden = newBlock.hidden = toggleLabel.hidden = on;
+        sortPanel.hidden = !on;
+        if (on) paintSort();
+        else sortPanel.replaceChildren();
+    }
+    quoteToggle.addEventListener('change', () => { if (sorting) paintSort(); });
     panel.addEventListener('keydown', event => {
         if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
         const key = event.key.toLowerCase();
@@ -400,7 +445,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     if (!blocks.length) addBlock([]);
     show(0);
     record();
-    panel.append(sections);
+    panel.append(sections, sortPanel);
     const writable = () => active() && editor.isConnected && source.isConnected &&
         ![editor, source].some(node => node.matches(':disabled, [readonly]')) &&
         original === editor.value && sourceValue === source.value;
@@ -415,6 +460,7 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
                 return false;
             }
             const drafts = [];
+            if (sorting) setSorting(false);
             for (const [i, { read }] of readers.entries()) {
                 show(i);
                 const draft = read();
