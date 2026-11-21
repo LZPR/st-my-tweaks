@@ -75,9 +75,8 @@ function options(label, items, choose) {
 }
 
 function invalid(input, message) {
-    input.setCustomValidity(message);
-    input.reportValidity();
-    input.setCustomValidity('');
+    input.focus();
+    toastr.error(message, 'PLists 编辑器');
     return false;
 }
 
@@ -312,19 +311,18 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
     blocks.forEach(block => addBlock(block.rows));
     if (!blocks.length) addBlock([]);
     show(0);
-    const error = element('p');
-    error.setAttribute('role', 'alert');
-    panel.append(sections, error);
+    panel.append(sections);
     const writable = () => active() && editor.isConnected && source.isConnected &&
         ![editor, source].some(node => node.matches(':disabled, [readonly]')) &&
         original === editor.value && sourceValue === source.value;
     let next;
+    const sourceChanged = '原编辑框已变更，请重新打开 PLists 编辑器。';
     const result = await context.callGenericPopup(panel, context.POPUP_TYPE.CONFIRM, '', {
         okButton: '保存', cancelButton: '取消', leftAlign: true, allowVerticalScrolling: true,
         onClosing(popup) {
             if (popup.result !== context.POPUP_RESULT.AFFIRMATIVE) return true;
             if (!writable()) {
-                error.textContent = '原编辑框已变更，请取消并重新打开。';
+                toastr.error(sourceChanged, 'PLists 编辑器');
                 return false;
             }
             const drafts = [];
@@ -338,7 +336,11 @@ async function edit(context, editor, source, locationId, config, updateConfig, a
             return true;
         },
     });
-    if (result === context.POPUP_RESULT.AFFIRMATIVE && next !== undefined && next !== original && writable()) {
+    if (result === context.POPUP_RESULT.AFFIRMATIVE && next !== undefined && next !== original) {
+        if (!writable()) {
+            toastr.error(sourceChanged, 'PLists 编辑器');
+            return;
+        }
         editor.value = next;
         editor.dispatchEvent(new Event('input', { bubbles: true }));
         if (source.matches(quickPromptSelector) && document.activeElement !== source) {
