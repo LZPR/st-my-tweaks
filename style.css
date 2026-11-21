@@ -426,20 +426,45 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
     margin-block: .65em;
 }
 .pl-library-actions > .menu_button { width: auto; white-space: nowrap; }
-.st-plist .pl-batch {
+.st-plist-batch:not([hidden]) {
     position: sticky;
     bottom: 0;
     z-index: 1;
     display: flex;
-    flex-wrap: wrap;
+    align-self: center;
+    justify-content: center;
     align-items: center;
-    gap: .45em;
-    padding: .45em;
+    flex-wrap: wrap;
+    gap: .25em;
+    max-width: 100%;
+    margin: .55em auto 0;
+    padding: .3em;
+    border: 1px solid var(--SmartThemeBorderColor, #656d69);
+    border-radius: .8em;
     background: var(--SmartThemeBlurTintColor, Canvas);
-    border: 1px solid var(--pl-line);
-    border-radius: 6px;
+    box-shadow: 0 .15em .65em #0003;
 }
-.st-plist .pl-batch .menu_button { width: auto; white-space: nowrap; }
+.st-plist-batch:not([hidden]) + .popup-controls { display: none; }
+.st-plist-batch strong { font-size: .85em; padding-inline: .55em; white-space: nowrap; }
+.st-plist-batch .pl-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35em;
+    min-height: 2.3em;
+    padding: .3em .55em;
+    border: 0;
+    border-radius: .55em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.st-plist-batch .pl-icon svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.st-plist-batch .pl-icon:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.st-plist-batch .pl-icon:last-child { background: #91cbbb; color: #152821; }
+.st-plist-batch .pl-icon:disabled { opacity: .4; cursor: default; }
 .st-plist .pl-chip { user-select: none; -webkit-touch-callout: none; }
 .st-plist.pl-selecting .pl-chip { touch-action: none; }
 .st-plist.pl-selecting .pl-chip[aria-pressed="true"] {

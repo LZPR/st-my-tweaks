@@ -40,6 +40,7 @@ const paths = {
     undo: 'M9 4 3 10l6 6M3 10h11a6 6 0 0 1 0 12',
     redo: 'm15 4 6 6-6 6m6-6H10a6 6 0 0 0 0 12',
     sort: 'M6 3v18m-4-14 4-4 4 4m4 10 4 4 4-4M18 3v18',
+    library: 'M4 4h6v16H4zM13 5l5-1 3 15-5 1z',
 };
 
 function iconButton(label, icon, run) {
@@ -365,10 +366,12 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     hint.className = 'pl-sort-hint';
     let sorting = false;
     const readers = [];
-    const batch = box('pl-batch');
+    const batch = box('st-plist-batch');
+    batch.setAttribute('role', 'toolbar');
+    batch.setAttribute('aria-label', '参数多选');
     batch.hidden = true;
     const selectedCount = element('strong');
-    const removeSelected = action('删除', () => {
+    const removeSelected = iconButton('删除', 'remove', () => {
         const state = snapshot();
         const index = picker.selectedIndex;
         visitSelected(state, (row, values, chosen) => {
@@ -378,7 +381,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         restore(state, index);
         record(undefined, index);
     });
-    const storeSelected = action('加入词库', async () => {
+    const storeSelected = iconButton('加入词库', 'library', async () => {
         const values = [];
         visitSelected(snapshot(), (_, items, chosen) => {
             for (const i of chosen) values.push(items[i]);
@@ -430,7 +433,17 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         restore(state, picker.selectedIndex);
         toastr.success('已添加 ' + additions.length + ' 个参数。', '常用词库');
     });
-    batch.append(selectedCount, removeSelected, storeSelected, action('完成', () => selection.exit()));
+    const done = iconButton('完成', 'done', () => selection.exit());
+    for (const button of [removeSelected, storeSelected, done]) button.append(button.title);
+    batch.append(selectedCount, removeSelected, storeSelected, done);
+    batch.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            selection.exit();
+            picker.focus();
+        }
+    });
     const selection = parameterSelection(panel, sections, () => {
         const current = picker.selectedIndex;
         for (const [i, section] of readers.entries()) {
@@ -441,6 +454,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         return true;
     }, (on, selected) => {
         if (batch.hidden === on) {
+            if (on) panel.closest('dialog')?.querySelector('.popup-controls')?.before(batch);
             batch.hidden = !on;
             for (const el of [undo, redo, organize, newBlock, toggleLabel, quoteLabel,
                 ...sections.querySelectorAll('.pl-name-cell, .pl-icon, .pl-add-row')]) el.inert = on;
