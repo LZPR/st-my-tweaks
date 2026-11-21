@@ -1,5 +1,5 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
-import { findBlocks, splitTraits, writeBlocks } from './plist-format.js';
+import { findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
 import { getPresets } from './plist-presets.js';
 
@@ -179,7 +179,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const commit = () => {
                 let next = rawInput();
                 if (!next && editing) return invalid(input, '请输入参数，或点击删除图标。');
-                if (next && (/[\[\]]/u.test(next) || splitTraits(next, ';；')?.length !== 1))
+                if (next && (/[\[\]]/u.test(maskMacros(next)) || splitTraits(next, ';；')?.length !== 1))
                     return invalid(input, '请配对括号，并避开方括号和顶层分号。');
                 if (splitTraits(next).length > 1) next = enclose(next, '"');
                 if (next) items[index] = next;
@@ -292,7 +292,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const name = row.key.value.trim();
             const value = row.read();
             if (!name && !value) continue;
-            if (!name || /[:：=;；\[\]\r\n]/u.test(name) || splitTraits(name) === null || !value) {
+            if (!name || /[:：=;；\[\]\r\n]/u.test(maskMacros(name)) || splitTraits(name) === null || !value) {
                 invalid(row.key, !value ? '请至少添加一个参数，或删除此属性。' : '请填写有效的属性名称。');
                 return null;
             }
@@ -528,7 +528,7 @@ export const plistEditor = {
         const { read } = rowList(section, getPresets(config));
         return () => {
             for (const input of prefixFields) {
-                if (/[:：=;；\[\]]/u.test(input.value) || splitTraits(input.value) === null) {
+                if (/[:：=;；\[\]]/u.test(maskMacros(input.value)) || splitTraits(input.value) === null) {
                     prefixSettings.open = true;
                     return invalid(input, '请配对括号，并避开属性分隔符和方括号。');
                 }

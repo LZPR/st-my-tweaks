@@ -1,17 +1,42 @@
+// Keep source offsets while hiding punctuation owned by a complete ST macro.
+// An unfinished macro must not hide subsequent PLists in the same editor.
+export function maskMacros(text) {
+    if (!text.includes('{{')) return text;
+    const openings = [];
+    const ranges = [];
+    for (const match of text.matchAll(/\{\{|\}\}/gu)) {
+        if (match[0] === '{{') {
+            openings.push(match.index);
+        } else if (openings.length) {
+            const start = openings.pop();
+            while (ranges.length && ranges.at(-1).start > start) ranges.pop();
+            ranges.push({ start, end: match.index + 2 });
+        }
+    }
+    let masked = '';
+    let cursor = 0;
+    for (const { start, end } of ranges) {
+        masked += text.slice(cursor, start) + 'M'.repeat(end - start);
+        cursor = end;
+    }
+    return masked + text.slice(cursor);
+}
+
 // Separators inside descriptions such as hair(long, black) belong to the trait.
 export function splitTraits(text, separators = ',，') {
+    const syntax = maskMacros(text);
     const parts = [];
     let depth = 0;
     let start = 0;
     let quote = '';
     for (let i = 0; i < text.length; i++) {
-        const char = text[i];
+        const char = syntax[i];
         if (quote) {
             if (char === '\\') i++;
             else if (char === quote) quote = '';
             continue;
         }
-        if ((char === '"' || char === '“') && text.indexOf(char === '"' ? '"' : '”', i + 1) !== -1) {
+        if ((char === '"' || char === '“') && syntax.indexOf(char === '"' ? '"' : '”', i + 1) !== -1) {
             quote = char === '"' ? '"' : '”';
             continue;
         }
@@ -34,10 +59,15 @@ export function parseRows(body, valueRanges = []) {
     const rows = [];
     let offset = 0;
     for (const section of sections) {
-        const match = /^(\s*)([^:：=;；\[\]\r\n]+?)(\s*[:：=]\s*)([\s\S]+?)(\s*)$/u.exec(section);
+        const match = /^(\s*)([^:：=;；\[\]\r\n]+?)(\s*[:：=]\s*)([\s\S]+?)(\s*)$/u.exec(maskMacros(section));
         if (!match || !match[2].trim() || !match[4].trim()) return null;
-        rows.push({ name: match[2].trim(), value: match[4].trim() });
-        const start = offset + match[1].length + match[2].length + match[3].length;
+        const nameEnd = match[1].length + match[2].length;
+        const valueStart = nameEnd + match[3].length;
+        rows.push({
+            name: section.slice(match[1].length, nameEnd).trim(),
+            value: section.slice(valueStart, valueStart + match[4].length).trim(),
+        });
+        const start = offset + valueStart;
         valueRanges.push({ start, end: start + match[4].length });
         offset += section.length + 1;
     }
@@ -46,13 +76,13 @@ export function parseRows(body, valueRanges = []) {
 
 export function findBlocks(text) {
     const blocks = [];
-    for (const match of text.matchAll(/\[([^\[\]]+)\]/gu)) {
+    for (const match of maskMacros(text).matchAll(/\[([^\[\]]+)\]/gu)) {
         const end = match.index + match[0].length;
         // Markdown links, reference definitions and double brackets are other markup.
         if (text[end] === '(' || text[end] === ':' || text[end] === ']' ||
             /[!\[\\]/u.test(text[match.index - 1] ?? '') || /^\s*https?:\/\//iu.test(match[1])) continue;
         const valueRanges = [];
-        const rows = parseRows(match[1], valueRanges);
+        const rows = parseRows(text.slice(match.index + 1, end - 1), valueRanges);
         if (rows) blocks.push({ start: match.index, end, rows, valueRanges });
     }
     return blocks;
