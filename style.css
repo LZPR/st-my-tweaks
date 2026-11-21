@@ -83,3 +83,36 @@
     outline: 2px solid currentColor;
     outline-offset: -3px;
 }
+
+.st-my-tweaks-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    width: 100%;
+}
+
+.st-my-tweaks-name-row > :is(input, textarea) {
+    flex: 1;
+    min-width: 0;
+}
+
+.st-my-tweaks-name-row > button {
+    flex: none;
+    width: auto;
+    white-space: nowrap;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+}
+
+.st-my-tweaks-name-actions {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 0.5em;
+}
+
+.st-my-tweaks-name-actions > .menu_button {
+    flex: none;
+    width: auto;
+    white-space: nowrap;
+}

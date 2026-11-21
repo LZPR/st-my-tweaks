@@ -5,6 +5,10 @@ const settingsKey = 'st-my-tweaks';
 function addToolRow(panel, tool, settings, context) {
     let stop;
     const getConfig = () => settings.config[tool.id] ?? {};
+    const updateConfig = changes => {
+        settings.config[tool.id] = { ...getConfig(), ...changes };
+        context.saveSettingsDebounced();
+    };
     const row = document.createElement('div');
     row.className = 'flex-container alignitemscenter';
     row.style.justifyContent = 'space-between';
@@ -18,7 +22,7 @@ function addToolRow(panel, tool, settings, context) {
 
     if (settings.enabled[tool.id] === true) {
         try {
-            stop = tool.start(context, getConfig);
+            stop = tool.start(context, getConfig, updateConfig);
             checkbox.checked = true;
         } catch (error) {
             console.error(`[ST My Tweaks] Failed to start ${tool.id}`, error);
@@ -28,7 +32,7 @@ function addToolRow(panel, tool, settings, context) {
     checkbox.addEventListener('change', () => {
         try {
             if (checkbox.checked) {
-                stop = tool.start(context, getConfig);
+                stop = tool.start(context, getConfig, updateConfig);
             } else {
                 stop();
                 stop = undefined;
@@ -64,13 +68,14 @@ function addToolRow(panel, tool, settings, context) {
                 heading.textContent = tool.label;
                 const canvas = document.createElement('div');
                 content.append(heading, canvas);
-                tool.renderSettings(canvas, draft);
+                const validate = tool.renderSettings(canvas, draft);
 
                 const result = await context.callGenericPopup(content, context.POPUP_TYPE.CONFIRM, '', {
                     okButton: '保存',
                     cancelButton: '取消',
                     leftAlign: true,
                     allowVerticalScrolling: true,
+                    onClosing: popup => popup.result !== context.POPUP_RESULT.AFFIRMATIVE || !validate || validate(),
                 });
                 if (result === context.POPUP_RESULT.AFFIRMATIVE) {
                     settings.config[tool.id] = draft;
