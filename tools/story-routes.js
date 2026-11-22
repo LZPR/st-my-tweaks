@@ -2,13 +2,26 @@ import { extension_prompt_roles, extension_prompt_types, isGenerating } from '..
 
 const promptKey = 'st-my-tweaks-story-route';
 const defaults = {
+    autoGenerate: true,
     count: 4,
     lifetime: 6,
     generation: '根据当前对话，用对话所用的语言提出几条后续发展路线。每条用一两句话写清从当前情境如何发展，保留用户决定如何回应的空间。不要代写用户台词或行动。让不同路线在事件、关系或节奏上有实质区别，例如顺势推进、深入了解或引入合理的戏剧性转折。',
     guidance: '请结合角色和当前情境，循序渐进地沿以下路线推动对话，为用户留出回应空间。\n{{route}}',
 };
 
+function addCheckbox(canvas, draft, key, label) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'checkbox_label';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = draft[key] ?? defaults[key];
+    input.addEventListener('change', () => { draft[key] = input.checked; });
+    wrapper.append(input, label);
+    canvas.append(wrapper);
+}
+
 function renderSettings(canvas, draft) {
+    addCheckbox(canvas, draft, 'autoGenerate', '没有路线时自动生成');
     const fields = [];
     for (const [key, label] of [
         ['count', '推荐路线数量'], ['lifetime', '有效消息条数'],
@@ -318,7 +331,7 @@ function start(context, getConfig) {
         popup = current;
         update();
         const closed = current.show();
-        if (!session.routes.length && !session.custom) void generate();
+        if (config().autoGenerate && !session.routes.length && !session.custom) void generate();
         try {
             await closed;
         } finally {
