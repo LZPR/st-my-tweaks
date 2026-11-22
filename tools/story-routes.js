@@ -3,6 +3,7 @@ import { extension_prompt_roles, extension_prompt_types, isGenerating } from '..
 const promptKey = 'st-my-tweaks-story-route';
 const defaults = {
     autoGenerate: true,
+    notifyOnExpiry: true,
     count: 4,
     lifetime: 6,
     generation: '根据当前对话，用对话所用的语言提出几条后续发展路线。每条用一两句话写清从当前情境如何发展，保留用户决定如何回应的空间。不要代写用户台词或行动。让不同路线在事件、关系或节奏上有实质区别，例如顺势推进、深入了解或引入合理的戏剧性转折。',
@@ -22,6 +23,7 @@ function addCheckbox(canvas, draft, key, label) {
 
 function renderSettings(canvas, draft) {
     addCheckbox(canvas, draft, 'autoGenerate', '没有路线时自动生成');
+    addCheckbox(canvas, draft, 'notifyOnExpiry', '路线到期时弹出提醒');
     const fields = [];
     for (const [key, label] of [
         ['count', '推荐路线数量'], ['lifetime', '有效消息条数'],
@@ -131,12 +133,14 @@ function start(context, getConfig) {
 
     function syncPrompt() {
         const live = SillyTavern.getContext();
-        const { guidance, lifetime } = config();
-        if (live.chat.length - 1 - session.anchor >= lifetime && session.selected) {
+        const { guidance, lifetime, notifyOnExpiry } = config();
+        const current = isCurrent(session);
+        if (current && session.selected && live.chat.length - 1 - session.anchor >= lifetime) {
             session.selected = null;
             session.notice = '路线已到期，可重新选择。';
+            if (notifyOnExpiry) toastr.info(session.notice);
         }
-        if (!isCurrent(session) || !session.selected || session.pending) {
+        if (!current || !session.selected || session.pending) {
             delete live.extensionPrompts[promptKey];
             return;
         }
