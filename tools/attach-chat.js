@@ -54,6 +54,79 @@ async function readMessages(ctx, row, title, signal) {
         : await readChats(ctx, 'get', { avatar_url: row.avatar ?? '', file_name: title }, signal);
     return data.filter(msg => !msg?.is_system && typeof msg?.mes === 'string' && msg.mes.trim());
 }
+
+async function chooseMessages(ctx, chat, previous, signal) {
+    const messages = previous?.messages ?? await readMessages(ctx, chat.row, chat.title, signal);
+    if (signal.aborted) return;
+    if (!messages.length) throw new Error('这个聊天已没有可附加的消息。');
+    const body = document.createElement('div');
+    body.className = 'stmt-attach-panel';
+    body.innerHTML = `<h3></h3><div class="stmt-message-range">
+        <label>从第 <input type="number" min="1" value="1" class="text_pole" required> 条</label>
+        <label>至第 <input type="number" min="1" class="text_pole" required> 条</label>
+        <button type="button" class="menu_button">选中范围</button>
+        <button type="button" class="menu_button">清空</button>
+        </div><div class="stmt-attach-list"></div><small role="status"></small>`;
+    body.querySelector('h3').textContent = chat.title;
+    const [first, last] = body.querySelectorAll('input');
+    first.max = last.max = last.value = String(messages.length);
+    const [range, clear] = body.querySelectorAll('button');
+    const list = body.querySelector('.stmt-attach-list');
+    const status = body.querySelector('small');
+    const indices = new Set(previous?.indices ?? (previous ? messages.keys() : []));
+    const boxes = messages.map((msg, i) => {
+        const label = document.createElement('label');
+        label.className = 'stmt-attach-card';
+        const speaker = document.createElement('strong');
+        speaker.textContent = (i + 1) + ' · ' + (msg.name || (msg.is_user ? '用户' : '角色'));
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = indices.has(i);
+        checkbox.onchange = () => {
+            if (checkbox.checked) indices.add(i);
+            else indices.delete(i);
+            updateCount();
+        };
+        const text = document.createElement('span');
+        text.className = 'stmt-message-text';
+        text.textContent = msg.mes;
+        label.append(speaker, checkbox, text);
+        list.append(label);
+        return checkbox;
+    });
+    function updateCount() {
+        status.textContent = '共 ' + messages.length + ' 条 · 已选 ' + indices.size + ' 条';
+    }
+    range.onclick = () => {
+        if (!first.reportValidity() || !last.reportValidity()) return;
+        if (first.valueAsNumber > last.valueAsNumber) {
+            status.textContent = '起始编号不能大于结束编号。';
+            return;
+        }
+        for (let i = first.valueAsNumber - 1; i < last.valueAsNumber; i++) {
+            indices.add(i);
+            boxes[i].checked = true;
+        }
+        updateCount();
+    };
+    clear.onclick = () => {
+        indices.clear();
+        for (const checkbox of boxes) checkbox.checked = false;
+        updateCount();
+    };
+    updateCount();
+    const popup = new ctx.Popup(body, ctx.POPUP_TYPE.CONFIRM, '', {
+        okButton: '应用选择', cancelButton: '取消', leftAlign: true,
+    });
+    const cancel = () => void popup.completeCancelled();
+    signal.addEventListener('abort', cancel, { once: true });
+    try {
+        const result = await popup.show();
+        if (!signal.aborted && result === ctx.POPUP_RESULT.AFFIRMATIVE) return { messages, indices };
+    } finally {
+        signal.removeEventListener('abort', cancel);
+    }
+}
 function start(context, getConfig) {
     const entry = document.createElement('button');
     entry.type = 'button';
@@ -150,9 +223,14 @@ function start(context, getConfig) {
                 if (!signal.aborted && version === revision) status.textContent = '聊天列表读取失败，请重新打开。';
             }
 
-            function addCard({ row, title, name, key }, previewText) {
-                const label = document.createElement('label');
-                label.className = 'stmt-attach-card';
+            function addCard(chat, previewText) {
+                const { key, title, name } = chat;
+                const card = document.createElement('div');
+                card.className = 'stmt-attach-card stmt-attach-chat';
+                const details = document.createElement('button');
+                details.type = 'button';
+                details.className = 'stmt-attach-open';
+                details.setAttribute('aria-haspopup', 'dialog');
                 const heading = document.createElement('strong');
                 heading.textContent = title;
                 const author = document.createElement('small');
@@ -160,17 +238,42 @@ function start(context, getConfig) {
                 const preview = document.createElement('span');
                 preview.className = 'stmt-attach-preview';
                 preview.textContent = previewText;
+                const action = document.createElement('small');
+                details.append(heading, author, preview, action);
+                const whole = document.createElement('label');
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = selected.has(key);
-                checkbox.onchange = () => {
-                    if (checkbox.checked) selected.set(key, { row, title, name });
-                    else selected.delete(key);
+                whole.append(checkbox, '整段');
+                checkbox.setAttribute('aria-label', '附加整段：' + title);
+                function sync() {
+                    const selection = selected.get(key);
+                    checkbox.checked = Boolean(selection && !selection.indices);
+                    checkbox.indeterminate = Boolean(selection?.indices);
+                    action.textContent = selection?.indices ? '已选 ' + selection.indices.size + ' 条 ›' : '选择消息 ›';
                     updateStatus();
+                }
+                checkbox.onchange = () => {
+                    if (checkbox.checked) selected.set(key, chat);
+                    else selected.delete(key);
+                    sync();
                 };
-                label.append(heading, checkbox, author, preview);
-                list.append(label);
-
+                details.onclick = async () => {
+                    details.disabled = true;
+                    try {
+                        const choice = await chooseMessages(ctx, chat, selected.get(key), signal);
+                        if (!choice) return;
+                        if (choice.indices.size) selected.set(key, { ...chat, ...choice });
+                        else selected.delete(key);
+                        sync();
+                    } catch (error) {
+                        if (!signal.aborted) status.textContent = error.message;
+                    } finally {
+                        details.disabled = false;
+                    }
+                };
+                sync();
+                card.append(details, whole);
+                list.append(card);
             }
             function updateStatus() {
                 status.textContent = (count ? (filtered ? '匹配 ' : '最近 ') + count + ' 个聊天' : '没有匹配的聊天') + ' · 已选 ' + selected.size + (failed ? ' · 部分聊天读取失败' : '');
@@ -195,8 +298,9 @@ function start(context, getConfig) {
                 status.textContent = '正在准备附件…';
                 try {
                     const transfer = new DataTransfer();
-                    for (const { row, title, name } of selected.values()) {
-                        const messages = await readMessages(ctx, row, title, signal);
+                    for (const { row, title, name, messages: snapshot, indices } of selected.values()) {
+                        const messages = indices ? snapshot.filter((_, index) => indices.has(index))
+                            : await readMessages(ctx, row, title, signal);
                         const body = transcript(messages, getConfig().maxLength ?? defaults.maxLength);
                         if (!body) throw new Error('「' + title + '」没有可附加的消息。');
                         transfer.items.add(new File([body], name + ' - ' + title + '.txt', { type: 'text/plain' }));

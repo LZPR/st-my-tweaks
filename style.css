@@ -849,3 +849,32 @@ dialog.popup:has(.stmt-attach-panel) {
 @media (max-width: 480px) {
     .stmt-attach-filters { grid-template-columns: minmax(0, 1fr); }
 }
+
+.stmt-attach-chat { align-items: start; cursor: default; }
+.stmt-attach-chat:has(:indeterminate) { background-color: var(--cobalt30a); }
+.stmt-attach-chat > label, .stmt-message-range, .stmt-message-range label {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+}
+.stmt-attach-chat > label { cursor: pointer; }
+.stmt-attach-open {
+    display: grid;
+    gap: 0.2em;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+.stmt-attach-open > small:last-child { text-decoration: underline; }
+.stmt-message-range { flex-wrap: wrap; }
+.stmt-message-range input { width: 4.5em; margin: 0; }
+.stmt-message-text {
+    grid-column: 1 / -1;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
