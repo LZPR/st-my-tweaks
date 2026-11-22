@@ -4,7 +4,7 @@ import { uuidv4 } from '../../../../utils.js';
 import { applyAssistantPreset, characterDescription, descriptionTool } from './assistant-generation.js';
 import { migrateAssistantChats } from './assistant-store.js';
 
-const defaults = { preset: '', prompt: '你是 AI 助手。', promptMode: 'top', menu: true, remember: true, hideCard: true, description: true };
+const defaults = { preset: '', prompt: '你是 AI 助手。', promptMode: 'top', menu: true, remember: true, hideCard: true, description: true, reviewWrites: true };
 let updateSettings;
 
 function element(tag, text, className) {
@@ -57,6 +57,7 @@ function renderSettings(canvas, draft) {
         ['remember', '记住上次聊天（当前页面）'],
         ['hideCard', '隐藏助手角色卡'],
         ['description', '角色描述（读取和修改）'],
+        ['reviewWrites', '写入前手动审查'],
     ]) {
         if (key === 'description') canvas.append(element('h4', '工具管理'));
         const check = element('input');
@@ -217,7 +218,11 @@ function start(context, getConfig) {
         hooks.push([event, callback]);
     };
     const events = context.eventTypes;
+    const toolCalls = new Set();
+    const cancelToolCalls = () => { for (const call of toolCalls) call.abort(); };
+    on(events.GENERATION_STOPPED, cancelToolCalls);
     on(events.CHAT_CHANGED, () => {
+        cancelToolCalls();
         if (active()) {
             if (config().remember) lastChat = live().chatId;
             if (config().hideCard) document.querySelector('#rm_button_characters')?.click();
@@ -254,12 +259,19 @@ function start(context, getConfig) {
     context.registerFunctionTool({
         ...descriptionTool.function, displayName: '角色描述',
         shouldRegister: () => active() && config().description,
-        action: args => {
+        action: async args => {
             if (!active() || !config().description) throw new Error('助手角色描述工具未启用。');
-            return characterDescription(args, previous?.group == null ? previous?.avatar : undefined);
+            const call = new AbortController();
+            toolCalls.add(call);
+            try {
+                return await characterDescription(args, previous?.group == null ? previous?.avatar : undefined, call.signal, config().reviewWrites);
+            } finally {
+                toolCalls.delete(call);
+            }
         },
     });
     updateSettings = () => {
+        if (!config().description) cancelToolCalls();
         if (!config().remember) lastChat = null;
         refreshControls();
         printCharactersDebounced();
@@ -275,6 +287,7 @@ function start(context, getConfig) {
     return async () => {
         if (navigating || (active() && isGenerating())) throw new Error('请在切换聊天或生成回复结束后关闭助手。');
         await navigate(() => leave());
+        cancelToolCalls();
         releasePreset();
         for (const [event, callback] of hooks) context.eventSource.removeListener(event, callback);
         context.unregisterFunctionTool(descriptionTool.function.name);

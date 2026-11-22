@@ -1,6 +1,7 @@
 import { promptManager, settingsToUpdate } from '../../../../openai.js';
 import { ToolManager } from '../../../../tool-calling.js';
 import { uuidv4 } from '../../../../utils.js';
+import { DiffMatchPatch } from '../../../../../lib.js';
 
 export const descriptionTool = {
     type: 'function',
@@ -14,7 +15,52 @@ export const descriptionTool = {
     },
 };
 
-export async function characterDescription(args, avatar, signal) {
+async function reviewDescription(context, name, avatar, before, after, signal) {
+    const panel = document.createElement('div');
+    panel.className = 'stmt-write-review';
+    const heading = document.createElement('h3');
+    heading.textContent = '审查角色描述修改';
+    const target = document.createElement('p');
+    target.textContent = `${name}（${avatar}）`;
+    const columns = document.createElement('div');
+    columns.className = 'stmt-write-comparison';
+    const differ = new DiffMatchPatch();
+    const diff = differ.diff_main(before, after);
+    differ.diff_cleanupSemantic(diff);
+    for (const [side, title, value] of [[-1, '当前描述', before], [1, '拟写入的描述', after]]) {
+        const section = document.createElement('section');
+        const label = document.createElement('h4');
+        label.textContent = title;
+        const body = document.createElement('div');
+        body.className = 'stmt-write-text';
+        for (const [op, text] of diff) {
+            if (!op) body.append(text);
+            else if (op === side) {
+                const mark = document.createElement(side < 0 ? 'del' : 'ins');
+                mark.textContent = text;
+                body.append(mark);
+            }
+        }
+        if (!value) body.textContent = side < 0 ? '（当前为空）' : '（将清空描述）';
+        section.append(label, body);
+        columns.append(section);
+    }
+    panel.append(heading, target, columns);
+    signal.throwIfAborted();
+    const popup = new context.Popup(panel, context.POPUP_TYPE.CONFIRM, '', {
+        okButton: '同意写入', cancelButton: '拒绝', defaultResult: context.POPUP_RESULT.NEGATIVE,
+        leftAlign: true, wider: true, allowVerticalScrolling: true,
+    });
+    const dismiss = () => popup.completeNegative();
+    signal.addEventListener('abort', dismiss, { once: true });
+    try {
+        return await popup.show() === context.POPUP_RESULT.AFFIRMATIVE;
+    } finally {
+        signal.removeEventListener('abort', dismiss);
+    }
+}
+
+export async function characterDescription(args, avatar, signal, reviewWrites) {
     const live = SillyTavern.getContext();
     const cards = live.characters.filter(Boolean);
     const matches = args.character === undefined
@@ -30,10 +76,19 @@ export async function characterDescription(args, avatar, signal) {
         if (!response.ok) throw new Error('角色卡请求失败（' + response.status + '）。');
         return response;
     };
-    const current = await (await request('get', {})).json();
+    const readCard = async () => (await request('get', {})).json();
+    const current = await readCard();
     const before = current.data?.description ?? current.description ?? '';
     if (!Object.hasOwn(args, 'description')) return { name: current.name, description: before };
     if (typeof args.description !== 'string') throw new Error('角色描述必须为文本。');
+    if (reviewWrites) {
+        const approved = await reviewDescription(live, current.name, card.avatar, before, args.description, signal);
+        if (!approved) return { name: current.name, saved: false, reason: '用户未批准此次写入。' };
+        const latest = await readCard();
+        if (latest.name !== current.name || (latest.data?.description ?? latest.description ?? '') !== before) {
+            return { name: current.name, saved: false, reason: '审查期间角色卡已变化，请重新读取并审查。' };
+        }
+    }
     const editor = document.querySelector('#description_textarea');
     const editing = () => editor && document.querySelector('#avatar_url_pole')?.value === card.avatar;
     if (editing() && editor.value !== before) throw new Error('编辑框中有尚未保存的角色描述。');

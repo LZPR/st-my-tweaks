@@ -745,3 +745,39 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
 .stmt-routes .is-editing textarea { width: 100%; margin: 0; resize: vertical; }
 .stmt-routes .is-editing .editor_maximize { position: static; margin-inline-end: auto; }
 .stmt-message-menu button:is(:hover, :focus-visible) { background: var(--SmartThemeBorderColor, #555); }
+
+.stmt-write-review > p { overflow-wrap: anywhere; }
+.stmt-write-comparison {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18em), 1fr));
+    gap: .8em;
+}
+.stmt-write-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: .4em;
+    padding: .75em;
+    line-height: 1.55;
+}
+.stmt-write-text del { background-color: rgba(210, 82, 82, .24); }
+.stmt-write-text ins { background-color: rgba(56, 160, 100, .26); }
+@media (max-width: 600px) {
+    dialog.popup:has(.stmt-write-review) {
+        box-sizing: border-box;
+        width: calc(100% - 1rem);
+        max-width: calc(100% - 1rem);
+        max-height: calc(100dvh - 1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: 0;
+        padding: .5rem;
+    }
+    .popup:has(.stmt-write-review) .popup-body { min-height: 0; }
+    .popup:has(.stmt-write-review) .popup-content { min-height: 0; overscroll-behavior: contain; }
+    .popup:has(.stmt-write-review) .popup-controls {
+        flex: none;
+        align-self: stretch;
+        gap: .6rem;
+    }
+    .popup:has(.stmt-write-review) .popup-controls .menu_button { flex: 1; min-height: 44px; }
+    .stmt-write-comparison { grid-template-columns: 1fr; }
+}
