@@ -29,18 +29,22 @@ function addToolRow(panel, tool, settings, context) {
         }
     }
 
-    checkbox.addEventListener('change', () => {
+    checkbox.addEventListener('change', async () => {
+        checkbox.disabled = true;
         try {
             if (checkbox.checked) {
                 stop = tool.start(context, getConfig, updateConfig);
             } else {
-                stop();
+                await stop();
                 stop = undefined;
             }
         } catch (error) {
             checkbox.checked = !checkbox.checked;
             console.error(`[ST My Tweaks] Failed to toggle ${tool.id}`, error);
+            toastr.error(error.message);
             return;
+        } finally {
+            checkbox.disabled = false;
         }
 
         settings.enabled[tool.id] = checkbox.checked;
