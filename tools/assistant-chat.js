@@ -4,7 +4,7 @@ import { uuidv4 } from '../../../../utils.js';
 import { applyAssistantPreset, characterDescription, descriptionTool } from './assistant-generation.js';
 import { migrateAssistantChats } from './assistant-store.js';
 
-const defaults = { preset: '', prompt: '你是 AI 助手。', menu: true, remember: true, hideCard: true, description: true };
+const defaults = { preset: '', prompt: '你是 AI 助手。', promptMode: 'top', menu: true, remember: true, hideCard: true, description: true };
 let updateSettings;
 
 function element(tag, text, className) {
@@ -42,7 +42,16 @@ function renderSettings(canvas, draft) {
     prompt.oninput = () => { draft.prompt = prompt.value; };
     const label = element('label', '助手角色描述');
     label.append(prompt);
-    canvas.append(preset, label);
+    const mode = element('select', undefined, 'text_pole');
+    for (const [value, text] of [
+        ['replace', '替换 Main Prompt'], ['top', '插入到预设顶部'],
+        ['bottom', '插入到预设底部'], ['none', '不注入'],
+    ]) mode.add(new Option(text, value));
+    mode.value = config.promptMode;
+    mode.onchange = () => { draft.promptMode = mode.value; };
+    const placement = element('label', '助手角色描述注入方式');
+    placement.append(mode);
+    canvas.append(preset, label, placement);
     for (const [key, title] of [
         ['menu', '在扩展菜单显示「管理助手聊天」'],
         ['remember', '记住上次聊天（当前页面）'],

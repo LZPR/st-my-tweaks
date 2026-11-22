@@ -1,5 +1,6 @@
 import { promptManager, settingsToUpdate } from '../../../../openai.js';
 import { ToolManager } from '../../../../tool-calling.js';
+import { uuidv4 } from '../../../../utils.js';
 
 export const descriptionTool = {
     type: 'function',
@@ -57,20 +58,39 @@ export function applyAssistantPreset(context, config, isAssistant) {
             if (field) overrides[field] = structuredClone(value);
         }
     }
-    const disabled = ['worldInfoBefore', 'worldInfoAfter', 'charDescription', 'charPersonality',
-        'scenario', 'personaDescription', 'dialogueExamples', 'bias', 'enhanceDefinitions', 'nsfw', 'jailbreak'];
+    const prompts = structuredClone(overrides.prompts ?? settings.prompts);
+    for (const prompt of prompts) {
+        if (['main', 'jailbreak'].includes(prompt.identifier)) prompt.forbid_overrides = true;
+    }
+    const characterId = promptManager.configuration.promptOrder.dummyId;
+    const presetOrder = overrides.prompt_order?.find(list => String(list.character_id) === String(characterId))?.order;
+    const order = structuredClone(presetOrder ?? promptManager.getPromptOrderForCharacter({ id: characterId }));
+    // ST can append built-in markers even when a preset omits them from its order.
+    for (const identifier of ['worldInfoBefore', 'worldInfoAfter', 'charDescription', 'charPersonality',
+        'scenario', 'personaDescription', 'dialogueExamples', 'bias']) {
+        const entry = order.find(item => item.identifier === identifier);
+        if (entry) entry.enabled = false;
+        else order.push({ identifier, enabled: false });
+    }
+    if (config.prompt.trim() && config.promptMode === 'replace') {
+        const main = prompts.find(prompt => prompt.identifier === 'main');
+        if (main) main.content = config.prompt;
+        else prompts.push({ identifier: 'main', name: 'Main Prompt', role: 'system', content: config.prompt, system_prompt: true, forbid_overrides: true });
+        const entry = order.find(item => item.identifier === 'main');
+        if (entry) entry.enabled = true;
+        else order.unshift({ identifier: 'main', enabled: true });
+    } else if (config.prompt.trim() && ['top', 'bottom'].includes(config.promptMode)) {
+        const identifier = prompts.some(p => p.identifier === 'stmtAssistantDescription') ? uuidv4() : 'stmtAssistantDescription';
+        prompts.push({ identifier, name: '助手角色描述', role: 'system', content: config.prompt, system_prompt: false });
+        const entry = { identifier, enabled: true };
+        if (config.promptMode === 'top') order.unshift(entry);
+        else order.push(entry);
+    }
     Object.assign(overrides, {
         function_calling: config.description, n: 1,
         custom_include_body: '', custom_exclude_body: '', custom_prompt_post_processing: '',
         new_chat_prompt: '', send_if_empty: '', assistant_prefill: '', squash_system_messages: false,
-        prompts: [
-            { identifier: 'main', name: '助手角色描述', role: 'system', content: config.prompt, system_prompt: true, forbid_overrides: true },
-            { identifier: 'chatHistory', name: 'Chat History', role: 'system', system_prompt: true, marker: true },
-        ],
-        prompt_order: [{ character_id: promptManager.configuration.promptOrder.dummyId, order: [
-            { identifier: 'main', enabled: true }, { identifier: 'chatHistory', enabled: true },
-            ...disabled.map(identifier => ({ identifier, enabled: false })),
-        ] }],
+        prompts, prompt_order: [{ character_id: characterId, order }],
     });
     const ordinary = new Map();
     for (const [key, value] of Object.entries(overrides)) {
