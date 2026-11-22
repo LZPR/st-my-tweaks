@@ -1,3 +1,5 @@
+import { enableMessageDrag } from './message-drag.js';
+
 const defaults = { recentCount: 8, maxLength: 12000 };
 
 function renderSettings(canvas, draft) {
@@ -67,34 +69,72 @@ async function chooseMessages(ctx, chat, previous, signal) {
         <label>至 <input type="number" min="1" class="text_pole" required aria-label="结束消息编号"></label>
         <button type="button" class="menu_button">选中范围</button>
         <button type="button" class="menu_button">清空</button>
-        </div><div class="stmt-attach-list"></div><small role="status"></small>`;
+        </div><div class="stmt-message-list-tools"><small>滑动左栏勾选 · 滑动正文浏览</small><button type="button" class="menu_button">全部展开</button></div>
+        <div class="stmt-attach-list"></div><small role="status"></small>`;
     body.querySelector('.stmt-message-chat-name').textContent = chat.title;
     const [first, last] = body.querySelectorAll('input');
     first.max = last.max = last.value = String(messages.length);
-    const [range, clear] = body.querySelectorAll('button');
+    const [range, clear, foldAll] = body.querySelectorAll('button');
     const list = body.querySelector('.stmt-attach-list');
-    const status = body.querySelector('small');
+    const status = body.querySelector('[role="status"]');
     const indices = new Set(previous?.indices ?? (previous ? messages.keys() : []));
+    const folds = [];
+    const expanded = new Set();
     const boxes = messages.map((msg, i) => {
-        const label = document.createElement('label');
-        label.className = 'stmt-attach-card';
-        const speaker = document.createElement('strong');
-        speaker.textContent = (i + 1) + ' · ' + (msg.name || (msg.is_user ? '用户' : '角色'));
+        const row = document.createElement('div');
+        row.className = 'stmt-attach-card stmt-message-row';
+        row.dataset.messageIndex = i;
+        const rail = document.createElement('div');
+        rail.className = 'stmt-message-rail';
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.setAttribute('aria-label', '选择第 ' + (i + 1) + ' 条消息');
         checkbox.checked = indices.has(i);
-        checkbox.onchange = () => {
-            if (checkbox.checked) indices.add(i);
-            else indices.delete(i);
-            updateCount();
+        checkbox.onchange = () => setChecked(i, checkbox.checked);
+        rail.append(checkbox);
+        const fold = document.createElement('button');
+        fold.type = 'button';
+        fold.className = 'stmt-message-fold';
+        fold.setAttribute('aria-expanded', 'false');
+        const speaker = document.createElement('strong');
+        speaker.textContent = (i + 1) + ' · ' + (msg.name || (msg.is_user ? '用户' : '角色'));
+        const chevron = document.createElement('i');
+        chevron.className = 'fa-solid fa-angle-down';
+        chevron.setAttribute('aria-hidden', 'true');
+        fold.append(speaker, chevron);
+        fold.onclick = () => {
+            setExpanded(i, !expanded.has(i));
+            updateFoldAll();
         };
+        folds.push(fold);
         const text = document.createElement('span');
         text.className = 'stmt-message-text';
         text.textContent = msg.mes;
-        label.append(speaker, checkbox, text);
-        list.append(label);
+        row.append(rail, fold, text);
+        list.append(row);
         return checkbox;
     });
+    function setExpanded(i, on) {
+        if (on) expanded.add(i);
+        else expanded.delete(i);
+        folds[i].setAttribute('aria-expanded', String(on));
+    }
+    function updateFoldAll() {
+        foldAll.textContent = expanded.size === messages.length ? '全部折叠' : '全部展开';
+    }
+    foldAll.onclick = () => {
+        const on = expanded.size !== messages.length;
+        folds.forEach((_, i) => setExpanded(i, on));
+        updateFoldAll();
+    };
+    function setChecked(i, on) {
+        if (indices.has(i) === on) return;
+        if (on) indices.add(i);
+        else indices.delete(i);
+        boxes[i].checked = on;
+        updateCount();
+    }
+    const stopDrag = enableMessageDrag(list, boxes, setChecked);
     function updateCount() {
         status.textContent = '共 ' + messages.length + ' 条 · 已选 ' + indices.size + ' 条';
     }
@@ -125,6 +165,7 @@ async function chooseMessages(ctx, chat, previous, signal) {
         const result = await popup.show();
         if (!signal.aborted && result === ctx.POPUP_RESULT.AFFIRMATIVE) return { messages, indices };
     } finally {
+        stopDrag();
         signal.removeEventListener('abort', cancel);
     }
 }
