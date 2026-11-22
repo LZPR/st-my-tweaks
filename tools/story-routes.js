@@ -189,11 +189,22 @@ function start(context, getConfig) {
         }
     }
 
+    function warnBeforeUnload(event) {
+        event.preventDefault();
+        event.returnValue = true;
+    }
+
+    function endEdit() {
+        editor = null;
+        window.removeEventListener('beforeunload', warnBeforeUnload);
+    }
+
     function edit(route) {
         const target = session;
         const card = document.createElement('div');
         card.className = 'st-my-tweaks-route is-editing';
         editor = { route, card };
+        window.addEventListener('beforeunload', warnBeforeUnload);
         const title = document.createElement('input');
         title.className = 'text_pole';
         title.placeholder = '路线标题';
@@ -220,10 +231,10 @@ function start(context, getConfig) {
             }
             if (route) Object.assign(route, { title: heading, text });
             else target.custom = { title: heading, text };
-            editor = null;
+            endEdit();
             syncPrompt();
             render(route ?? target.custom);
-        }, 'fa-check'), button('取消', () => { editor = null; render(route); })));
+        }, 'fa-check'), button('放弃编辑', () => { endEdit(); render(route); })));
         render();
         field.focus();
     }
@@ -275,6 +286,7 @@ function start(context, getConfig) {
                 render(route);
             });
             select.className = 'stmt-route-select';
+            select.disabled = !!editor;
             select.setAttribute('aria-pressed', String(active));
             const title = document.createElement('span');
             title.className = 'stmt-route-title';
@@ -303,7 +315,8 @@ function start(context, getConfig) {
 
     function close() {
         const current = popup;
-        popup = panel = list = editor = null;
+        endEdit();
+        popup = panel = list = null;
         if (current) void current.completeCancelled();
     }
 
@@ -327,6 +340,11 @@ function start(context, getConfig) {
         panel.append(document.createElement('div'), list);
         const current = new context.Popup(panel, context.POPUP_TYPE.TEXT, '', {
             okButton: '关闭', leftAlign: true, allowVerticalScrolling: true,
+            onClosing: () => {
+                if (!editor) return true;
+                toastr.info('请先保存路线，或点「放弃编辑」。', undefined, { preventDuplicates: true });
+                return false;
+            },
         });
         popup = current;
         update();
@@ -335,7 +353,10 @@ function start(context, getConfig) {
         try {
             await closed;
         } finally {
-            if (popup === current) popup = panel = list = editor = null;
+            if (popup === current) {
+                endEdit();
+                popup = panel = list = null;
+            }
         }
     }
 
