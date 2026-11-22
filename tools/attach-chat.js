@@ -28,7 +28,7 @@ function transcript(messages, remaining) {
     const lines = [];
     for (let i = messages.length - 1; i >= 0 && remaining > 0; i--) {
         const msg = messages[i];
-        if (msg?.is_system || typeof msg?.mes !== 'string' || !msg.mes.trim()) continue;
+
         const line = `${msg.name || (msg.is_user ? '用户' : '角色')}：${msg.mes}`;
         if (lines.length && --remaining === 0) break;
         const chars = Array.from(line);
@@ -48,6 +48,12 @@ async function readChats(context, route, body, signal) {
     return data;
 }
 
+async function readMessages(ctx, row, title, signal) {
+    const data = row.group
+        ? await readChats(ctx, 'group/get', { id: title }, signal)
+        : await readChats(ctx, 'get', { avatar_url: row.avatar ?? '', file_name: title }, signal);
+    return data.filter(msg => !msg?.is_system && typeof msg?.mes === 'string' && msg.mes.trim());
+}
 function start(context, getConfig) {
     const entry = document.createElement('button');
     entry.type = 'button';
@@ -83,24 +89,68 @@ function start(context, getConfig) {
 
         const controller = new AbortController();
         const { signal } = controller;
-        let allChats, recentChats, loadingAll, attaching = false;
-        function render() {
+        let catalog, revision = 0, attaching = false;
+        const previews = new Map();
+        function previewFor(chat) {
+            if (!previews.has(chat.key)) {
+                const pending = readMessages(ctx, chat.row, chat.title, signal)
+                    .then(messages => messages.at(-1)?.mes.slice(0, 300) ?? '')
+                    .catch(error => {
+                        previews.delete(chat.key);
+                        throw error;
+                    });
+                previews.set(chat.key, pending);
+            }
+            return previews.get(chat.key);
+        }
+
+        async function render() {
+            const version = ++revision;
             const query = search.value.trim().toLowerCase();
             const filtered = Boolean(query || owner.value);
             list.replaceChildren();
-            const rows = filtered ? allChats : recentChats;
-            if (!rows) {
-                status.textContent = '正在读取聊天…';
-                return;
+            status.textContent = '正在读取聊天…';
+            let count = 0, failed = false;
+            try {
+                catalog ??= readChats(ctx, 'recent', {}, signal).catch(error => {
+                    catalog = undefined;
+                    throw error;
+                });
+                const rows = await catalog;
+                const matches = [];
+                for (const row of rows) {
+                    const id = row.group ? 'g:' + row.group : 'c:' + (row.avatar ?? '');
+                    const title = row.file_name.replace(/\.jsonl$/i, '');
+                    const name = owners.get(id) ?? id.slice(2);
+                    if (currentOwner === id && current === title) continue;
+                    if (owner.value && owner.value !== id) continue;
+                    if (!(name + ' ' + title).toLowerCase().includes(query)) continue;
+                    matches.push({ row, title, name, key: JSON.stringify([id, title]) });
+                }
+                for (let i = 0; i < matches.length; i += 6) {
+                    if (signal.aborted || version !== revision) return;
+                    const batch = matches.slice(i, i + 6);
+                    const results = await Promise.allSettled(batch.map(previewFor));
+                    if (signal.aborted || version !== revision) return;
+                    for (const [j, result] of results.entries()) {
+                        if (result.status === 'rejected') {
+                            failed = true;
+                            continue;
+                        }
+                        if (!result.value) continue;
+                        addCard(batch[j], result.value);
+                        count++;
+                        if (!filtered && count >= recentCount) break;
+                    }
+                    updateStatus();
+                    if (!filtered && count >= recentCount) break;
+                }
+                updateStatus();
+            } catch {
+                if (!signal.aborted && version === revision) status.textContent = '聊天列表读取失败，请重新打开。';
             }
-            let count = 0;
-            for (const row of rows) {
-                const id = row.group ? 'g:' + row.group : 'c:' + (row.avatar ?? '');
-                const title = row.file_name.replace(/\.jsonl$/i, '');
-                if (currentOwner === id && current === title) continue;
-                const name = owners.get(id) ?? id.slice(2);
-                if ((owner.value && owner.value !== id) || !(name + ' ' + title).toLowerCase().includes(query)) continue;
-                const key = JSON.stringify([id, title]);
+
+            function addCard({ row, title, name, key }, previewText) {
                 const label = document.createElement('label');
                 label.className = 'stmt-attach-card';
                 const heading = document.createElement('strong');
@@ -109,8 +159,7 @@ function start(context, getConfig) {
                 author.textContent = name;
                 const preview = document.createElement('span');
                 preview.className = 'stmt-attach-preview';
-                preview.textContent = !row.mes || ['[The message is empty]', '[The chat is empty]'].includes(row.mes)
-                    ? '暂无消息预览' : row.mes.slice(0, 300);
+                preview.textContent = previewText;
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.checked = selected.has(key);
@@ -121,28 +170,13 @@ function start(context, getConfig) {
                 };
                 label.append(heading, checkbox, author, preview);
                 list.append(label);
-                if (++count >= recentCount && !filtered) break;
+
             }
             function updateStatus() {
-                status.textContent = (count ? (filtered ? '匹配 ' : '最近 ') + count + ' 个聊天' : '没有匹配的聊天') + ' · 已选 ' + selected.size;
-            }
-            updateStatus();
-        }
-
-        async function filter() {
-            render();
-            if (!(search.value.trim() || owner.value) || allChats || loadingAll) return;
-            loadingAll = true;
-            try {
-                allChats = await readChats(ctx, 'recent', {}, signal);
-                render();
-            } catch (error) {
-                if (!signal.aborted) status.textContent = '聊天列表读取失败，请重新筛选或重新打开。';
-            } finally {
-                loadingAll = false;
+                status.textContent = (count ? (filtered ? '匹配 ' : '最近 ') + count + ' 个聊天' : '没有匹配的聊天') + ' · 已选 ' + selected.size + (failed ? ' · 部分聊天读取失败' : '');
             }
         }
-        search.oninput = owner.onchange = filter;
+        search.oninput = owner.onchange = render;
 
         const popup = new context.Popup(panel, context.POPUP_TYPE.CONFIRM, '', {
             okButton: '附加', cancelButton: '取消', leftAlign: true,
@@ -162,9 +196,7 @@ function start(context, getConfig) {
                 try {
                     const transfer = new DataTransfer();
                     for (const { row, title, name } of selected.values()) {
-                        const messages = row.group
-                            ? await readChats(ctx, 'group/get', { id: title }, signal)
-                            : await readChats(ctx, 'get', { avatar_url: row.avatar ?? '', file_name: title }, signal);
+                        const messages = await readMessages(ctx, row, title, signal);
                         const body = transcript(messages, getConfig().maxLength ?? defaults.maxLength);
                         if (!body) throw new Error('「' + title + '」没有可附加的消息。');
                         transfer.items.add(new File([body], name + ' - ' + title + '.txt', { type: 'text/plain' }));
@@ -188,14 +220,7 @@ function start(context, getConfig) {
         session = { controller, popup };
         try {
             render();
-            const closed = popup.show();
-            readChats(ctx, 'recent', { max: recentCount + 1 }, signal).then(rows => {
-                recentChats = rows;
-                render();
-            }).catch(() => {
-                if (!signal.aborted && !search.value.trim() && !owner.value) status.textContent = '最近聊天读取失败，请重新打开。';
-            });
-            await closed;
+            await popup.show();
         } finally {
             controller.abort();
             session = undefined;
