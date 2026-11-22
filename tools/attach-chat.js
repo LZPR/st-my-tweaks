@@ -60,14 +60,15 @@ async function chooseMessages(ctx, chat, previous, signal) {
     if (signal.aborted) return;
     if (!messages.length) throw new Error('这个聊天已没有可附加的消息。');
     const body = document.createElement('div');
-    body.className = 'stmt-attach-panel';
-    body.innerHTML = `<h3></h3><div class="stmt-message-range">
-        <label>从第 <input type="number" min="1" value="1" class="text_pole" required> 条</label>
-        <label>至第 <input type="number" min="1" class="text_pole" required> 条</label>
+    body.className = 'stmt-attach-panel stmt-message-picker';
+    body.innerHTML = `<header><h3>选择消息</h3><div class="stmt-message-chat-name"></div></header>
+        <div class="stmt-message-range">
+        <label>从 <input type="number" min="1" value="1" class="text_pole" required aria-label="起始消息编号"></label>
+        <label>至 <input type="number" min="1" class="text_pole" required aria-label="结束消息编号"></label>
         <button type="button" class="menu_button">选中范围</button>
         <button type="button" class="menu_button">清空</button>
         </div><div class="stmt-attach-list"></div><small role="status"></small>`;
-    body.querySelector('h3').textContent = chat.title;
+    body.querySelector('.stmt-message-chat-name').textContent = chat.title;
     const [first, last] = body.querySelectorAll('input');
     first.max = last.max = last.value = String(messages.length);
     const [range, clear] = body.querySelectorAll('button');

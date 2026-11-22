@@ -878,3 +878,67 @@ dialog.popup:has(.stmt-attach-panel) {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
+
+dialog.popup:has(.stmt-attach-panel) {
+    height: min(44rem, 86dvh);
+    min-height: 0;
+}
+.popup:has(.stmt-attach-panel) .popup-content {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.popup:has(.stmt-attach-panel) .popup-controls { flex-shrink: 0; }
+.stmt-attach-panel {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+.stmt-attach-panel .stmt-attach-list {
+    max-height: none;
+    min-height: 0;
+    align-content: start;
+    overscroll-behavior: contain;
+}
+.stmt-message-picker {
+    --stmt-selection: color-mix(in srgb, #8ca7eb 65%, var(--SmartThemeBodyColor));
+}
+.stmt-message-picker header {
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    padding: 0.4em 0 0.7em;
+}
+.stmt-message-picker h3 { font-size: 1.3em; }
+.stmt-message-chat-name {
+    margin-top: 0.25em;
+    opacity: 0.75;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.stmt-message-range { gap: 0.5em; }
+.stmt-message-range .menu_button { margin: 0; width: auto; }
+.stmt-message-picker .stmt-attach-card {
+    border-radius: 8px;
+    padding: 0.7em 0.85em;
+    background: color-mix(in srgb, var(--SmartThemeBodyColor) 4%, transparent);
+}
+.stmt-message-picker .stmt-attach-card:has(:checked) {
+    border-color: var(--stmt-selection);
+    background: color-mix(in srgb, var(--stmt-selection) 13%, transparent);
+}
+.stmt-message-picker > small { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+    dialog.popup:has(.stmt-attach-panel) {
+        width: calc(100dvw - 1rem);
+        max-width: none;
+        height: min(46rem, 92dvh);
+        padding-inline: 0.35rem;
+    }
+    .stmt-message-range input { width: 3.4em; }
+    .popup:has(.stmt-attach-panel) .popup-controls {
+        align-self: stretch;
+        gap: 0.5rem;
+    }
+    .popup:has(.stmt-attach-panel) .popup-controls .menu_button { flex: 1; }
+}
