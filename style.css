@@ -781,3 +781,71 @@ dialog.popup:has(.stmt-routes) { width: min(46rem, 94vw); }
     .popup:has(.stmt-write-review) .popup-controls .menu_button { flex: 1; min-height: 44px; }
     .stmt-write-comparison { grid-template-columns: 1fr; }
 }
+dialog.popup:has(.stmt-attach-panel) {
+    width: min(42rem, 94vw);
+}
+
+.stmt-attach-panel {
+    display: grid;
+    gap: 0.65em;
+    text-align: start;
+}
+
+.stmt-attach-panel h3 {
+    margin: 0;
+    text-align: start;
+}
+
+.stmt-attach-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 0.5em;
+}
+
+.stmt-attach-filters .text_pole {
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+}
+
+.stmt-attach-list {
+    max-height: min(48dvh, 27rem);
+    overflow-y: auto;
+    display: grid;
+    gap: 5px;
+}
+
+.stmt-attach-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.2em 0.5em;
+    padding: 0.55em 0.75em;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.stmt-attach-card:hover { background-color: var(--white30a); }
+.stmt-attach-card:has(:checked) { background-color: var(--cobalt30a); }
+.stmt-attach-card:focus-within { outline: 1px solid currentColor; outline-offset: -2px; }
+.stmt-attach-card strong, .stmt-attach-card small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stmt-attach-card small, .stmt-attach-panel > small { opacity: 0.75; }
+.stmt-attach-preview {
+    grid-column: 1 / -1;
+    font-size: 0.9em;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+@media (max-width: 480px) {
+    .stmt-attach-filters { grid-template-columns: minmax(0, 1fr); }
+}
