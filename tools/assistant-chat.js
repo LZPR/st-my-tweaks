@@ -1,10 +1,10 @@
-import { closeCurrentChat, isGenerating, neutralCharacterName, doNewChat, getPastCharacterChats, setCharacterName } from '../../../../../script.js';
+import { closeCurrentChat, isGenerating, neutralCharacterName, doNewChat, entitiesFilter, getPastCharacterChats, printCharactersDebounced, setCharacterName } from '../../../../../script.js';
 import { openGroupById } from '../../../../group-chats.js';
 import { uuidv4 } from '../../../../utils.js';
 import { applyAssistantPreset, characterDescription, descriptionTool } from './assistant-generation.js';
 import { migrateAssistantChats } from './assistant-store.js';
 
-const defaults = { preset: '', prompt: '你是 AI 助手。', menu: true, remember: true, description: true };
+const defaults = { preset: '', prompt: '你是 AI 助手。', menu: true, remember: true, hideCard: true, description: true };
 let updateSettings;
 
 function element(tag, text, className) {
@@ -43,7 +43,12 @@ function renderSettings(canvas, draft) {
     const label = element('label', '助手角色描述');
     label.append(prompt);
     canvas.append(preset, label);
-    for (const [key, title] of [['menu', '在扩展菜单显示「管理助手聊天」'], ['remember', '记住上次聊天（当前页面）'], ['description', '角色描述（读取和修改）']]) {
+    for (const [key, title] of [
+        ['menu', '在扩展菜单显示「管理助手聊天」'],
+        ['remember', '记住上次聊天（当前页面）'],
+        ['hideCard', '隐藏助手角色卡'],
+        ['description', '角色描述（读取和修改）'],
+    ]) {
         if (key === 'description') canvas.append(element('h4', '工具管理'));
         const check = element('input');
         check.type = 'checkbox';
@@ -151,6 +156,7 @@ function start(context, getConfig) {
                 context.accountStorage.setItem(ownerKey, card.avatar);
                 await migrateAssistantChats(live(), card);
                 owner = card.avatar;
+                printCharactersDebounced();
             };
             if (navigator.locks) await navigator.locks.request(ownerKey, prepare);
             else await prepare();
@@ -203,7 +209,10 @@ function start(context, getConfig) {
     };
     const events = context.eventTypes;
     on(events.CHAT_CHANGED, () => {
-        if (active() && config().remember) lastChat = live().chatId;
+        if (active()) {
+            if (config().remember) lastChat = live().chatId;
+            if (config().hideCard) document.querySelector('#rm_button_characters')?.click();
+        }
         if (!active()) {
             releasePreset();
             if (!navigating) previous = null;
@@ -244,7 +253,15 @@ function start(context, getConfig) {
     updateSettings = () => {
         if (!config().remember) lastChat = null;
         refreshControls();
+        printCharactersDebounced();
     };
+    entitiesFilter.filterFunctions[ownerKey] = entities => {
+        if (!config().hideCard) return entities;
+        const knownAvatar = context.accountStorage.getItem(ownerKey);
+        return entities.filter(({ type, item }) => type !== 'character'
+            || !(ownsCard(item) || (item.shallow && item.avatar === knownAvatar)));
+    };
+    printCharactersDebounced();
     refreshControls();
     return async () => {
         if (navigating || (active() && isGenerating())) throw new Error('请在切换聊天或生成回复结束后关闭助手。');
@@ -252,6 +269,8 @@ function start(context, getConfig) {
         releasePreset();
         for (const [event, callback] of hooks) context.eventSource.removeListener(event, callback);
         context.unregisterFunctionTool(descriptionTool.function.name);
+        delete entitiesFilter.filterFunctions[ownerKey];
+        printCharactersDebounced();
         toggle.remove();
         manager.remove();
         updateSettings = null;
