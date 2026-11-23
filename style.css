@@ -996,3 +996,80 @@ dialog.popup:has(.stmt-attach-panel) {
     -webkit-line-clamp: 1;
     overflow: hidden;
 }
+.stmt-draft-manager {
+    --draft-accent: color-mix(in srgb, var(--SmartThemeBodyColor) 45%, #6598f5);
+    --draft-apply: color-mix(in srgb, var(--SmartThemeBodyColor) 45%, #30b99a);
+    --draft-delete: color-mix(in srgb, var(--SmartThemeBodyColor) 45%, #e87781);
+}
+
+.stmt-draft-manager h3, .stmt-draft-manager time, .stmt-draft-actions,
+.stmt-draft-actions .menu_button {
+    display: flex;
+    align-items: center;
+    gap: .55em;
+}
+
+.stmt-draft-manager h3 > i, .stmt-draft-manager time > i {
+    color: var(--draft-accent);
+}
+
+.stmt-draft-manager details {
+    margin-block: .55em;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: .65em;
+    background: color-mix(in srgb, var(--draft-accent) 5%, transparent);
+}
+
+.stmt-draft-manager details[open] {
+    border-color: var(--draft-accent);
+}
+
+.stmt-draft-manager summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .3em .8em;
+    align-items: center;
+    padding: .7em .85em;
+    cursor: pointer;
+    border-radius: inherit;
+}
+
+.stmt-draft-manager summary::-webkit-details-marker { display: none; }
+.stmt-draft-manager summary:hover { background: color-mix(in srgb, var(--draft-accent) 9%, transparent); }
+.stmt-draft-manager summary:focus-visible { outline: 2px solid var(--draft-accent); }
+.stmt-draft-manager time { font-size: .86em; font-variant-numeric: tabular-nums; }
+.stmt-draft-manager summary > i { grid-area: 1 / 2; color: var(--draft-accent); }
+.stmt-draft-manager details[open] summary > i { transform: rotate(180deg); }
+
+.stmt-draft-snippet {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stmt-draft-manager details[open] .stmt-draft-snippet { display: none; }
+.stmt-draft-actions { padding: 0 .85em .65em; }
+.stmt-draft-actions .menu_button {
+    width: auto;
+    margin: 0;
+    padding: .3em .7em;
+    color: var(--draft-action);
+    background: color-mix(in srgb, var(--draft-action) 12%, transparent);
+    border-color: color-mix(in srgb, var(--draft-action) 40%, transparent);
+}
+.stmt-draft-apply { --draft-action: var(--draft-apply); }
+.stmt-draft-delete { --draft-action: var(--draft-delete); }
+
+.stmt-draft-preview {
+    padding: .75em .85em;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+}
+
+.popup:has(.stmt-draft-manager) .popup-button-ok {
+    width: auto;
+    padding-inline: .8em;
+}
