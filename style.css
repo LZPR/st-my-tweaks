@@ -1073,3 +1073,99 @@ dialog.popup:has(.stmt-attach-panel) {
     width: auto;
     padding-inline: .8em;
 }
+
+.popup:has(.stmt-greetings) { width: min(42rem, 96vw); }
+.stmt-greetings {
+    --stmt-line: var(--SmartThemeBorderColor, #7776);
+    --stmt-soft: color-mix(in srgb, currentColor 6%, transparent);
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    text-align: start;
+    min-width: 0;
+    max-height: min(75dvh, 46rem);
+}
+.stmt-greetings header, .stmt-greeting-source, .stmt-greetings h4, .stmt-history label, .stmt-greeting-actions {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+}
+.stmt-greetings header { flex-wrap: wrap; }
+.stmt-greetings header h3 { font-size: 1.35em; margin: 0; }
+.stmt-character, .stmt-greetings small, .stmt-greetings h4 span, .stmt-history-status {
+    opacity: .76;
+    font-size: .88em;
+}
+.stmt-character { overflow-wrap: anywhere; }
+.stmt-greeting-source {
+    justify-content: space-between;
+    padding: .65em .8em;
+    border-radius: 8px;
+    background: var(--stmt-soft);
+    border-inline-start: 3px solid currentColor;
+}
+.stmt-greeting-source div { min-width: 0; }
+.stmt-greeting-source strong, .stmt-greeting-source small { display: block; }
+.stmt-greeting-source small, .stmt-greeting-row summary small, .stmt-greeting-row summary span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.stmt-greeting-source strong { font-size: .88em; margin-bottom: .2em; }
+.stmt-greetings button {
+    font: inherit;
+    font-size: .88em;
+    color: inherit;
+    border: 1px solid var(--stmt-line);
+    border-radius: 6px;
+    padding: .4em .65em;
+    background: transparent;
+    cursor: pointer;
+}
+.stmt-greetings button:hover, .stmt-greeting-row summary:hover { background: var(--stmt-soft); }
+.stmt-greetings .stmt-primary { flex: none; background: var(--stmt-soft); font-weight: 600; }
+.stmt-greetings .stmt-danger { margin-inline-start: auto; }
+.stmt-greetings .stmt-greeting-search { width: 100%; margin: 0; box-sizing: border-box; }
+.stmt-greeting-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 .25rem .3rem 0; }
+.stmt-greetings h4 { margin: .2rem 0 .5rem; font-size: 1em; }
+.stmt-greetings h4 span { font-weight: normal; font-variant-numeric: tabular-nums; }
+.stmt-greeting-row { border-bottom: 1px solid var(--stmt-line); }
+.stmt-greeting-row summary {
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 1em minmax(5em, 9em) minmax(0, 1fr);
+    gap: .5em;
+    align-items: center;
+    min-height: 2.7em;
+    list-style: none;
+}
+.stmt-greeting-row summary::-webkit-details-marker { display: none; }
+.stmt-greeting-row summary::before {
+    content: '';
+    width: .42em; height: .42em;
+    margin-left: .2em;
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(-45deg);
+}
+.stmt-greeting-row[open] summary::before { transform: rotate(45deg); }
+.stmt-greeting-row[open] summary small { display: none; }
+.stmt-greeting-row p, .stmt-greeting-confirm p {
+    white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55;
+    margin: .3em 0 .7em;
+}
+.stmt-greeting-actions { flex-wrap: wrap; gap: .4em; padding-bottom: .6em; }
+.stmt-history { margin-top: 1.3em; }
+.stmt-history label { cursor: pointer; gap: .4em; }
+.stmt-history-status:not(:empty) { margin-top: .6em; }
+.popup:has(.stmt-greeting-editor) { width: 96vw; height: 95dvh; }
+.popup:has(.stmt-greeting-editor) .popup-content { min-height: 0; }
+.stmt-greeting-editor { display: flex; height: 100%; flex-direction: column; gap: .6em; }
+.stmt-greeting-editor textarea { flex: 1; width: 100%; min-height: 0; resize: none; }
+@media (max-width: 520px) {
+    .popup:has(.stmt-greetings) { padding-inline: .45em; }
+    .stmt-greeting-row summary { grid-template-columns: 1em minmax(0, 1fr); gap: .12em .35em; padding: .4em 0; }
+    .stmt-greeting-row summary small { grid-column: 2; }
+    .stmt-greeting-source { padding: .55em; gap: .35em; }
+    .stmt-greetings button { min-height: 2.4em; }
+}

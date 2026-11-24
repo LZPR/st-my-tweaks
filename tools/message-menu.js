@@ -1,5 +1,6 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
 import { applyMessageGreeting, greetingCharacter } from './message-greeting.js';
+import { greetingBatchSize } from './greeting-history.js';
 
 const actions = [
     { key: 'greeting', label: '添加至开场白', icon: 'fa-comment-medical' },
@@ -40,9 +41,24 @@ export const messageMenu = {
             canvas.append(label);
         }
         canvas.append(createToolbarScaleSetting(draft, '悬浮菜单缩放'));
+        const label = document.createElement('label');
+        label.className = 'flex-container alignitemscenter';
+        const size = document.createElement('input');
+        size.type = 'number';
+        size.min = '1';
+        size.max = '50';
+        size.required = true;
+        size.value = String(greetingBatchSize(draft));
+        label.append('其它聊天开场白每批加载数', size);
+        canvas.append(label);
+        return () => {
+            if (!size.reportValidity()) return false;
+            draft.greetingBatchSize = size.valueAsNumber;
+            return true;
+        };
     },
     onSettingsChanged() { refresh?.(); },
-    start(context, getConfig) {
+    start(context, getConfig, updateConfig) {
         const chat = document.querySelector('#chat');
         const controller = new AbortController();
         const { signal } = controller;
@@ -74,7 +90,7 @@ export const messageMenu = {
             if (busy || !offersAction(message, key)) return;
             busy = true;
             try {
-                await applyMessageGreeting(message, () => !signal.aborted && enabled(key));
+                await applyMessageGreeting(message, () => !signal.aborted && enabled(key), getConfig(), updateConfig, signal);
             } catch {
                 toastr.error('无法读写角色开场白，请检查连接后重试。');
             } finally {
