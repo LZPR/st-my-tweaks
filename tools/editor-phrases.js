@@ -127,10 +127,6 @@ export function addPhraseSettings(canvas, config) {
         visible.append(checkbox, '显示在工具栏');
         heading.append(element('h4', '', '短语设置'), visible);
         settings.append(heading);
-        if (phrase.builtin) {
-            settings.append(element('p', 'st-phrase-hint', phrase.name + ' · 内置短语，可调整顺序和显示状态。'));
-            return;
-        }
         const fields = element('div', 'st-phrase-fields');
         function field(title, control) {
             const label = element('label', '', title);
@@ -138,16 +134,20 @@ export function addPhraseSettings(canvas, config) {
             label.append(control);
             fields.append(label);
         }
-        const name = element('input');
-        name.value = phrase.name;
-        name.required = true;
-        name.oninput = () => { phrase.name = name.value; drawLists(); };
-        field('按钮名称', name);
+        if (!phrase.builtin) {
+            const name = element('input');
+            name.value = phrase.name;
+            name.required = true;
+            name.oninput = () => { phrase.name = name.value; drawLists(); };
+            field('按钮名称', name);
+        }
         const position = element('select');
         for (const [value, label] of positions) position.add(new Option(label, value));
         position.value = phrase.position;
         position.onchange = () => { phrase.position = position.value; drawLists(); };
         field('显示位置', position);
+        settings.append(fields);
+        if (phrase.builtin) return;
         const alternatives = element('div', 'st-phrase-alternatives');
         const title = element('div', 'st-phrases-heading');
         const append = button('＋ 添加文本', 'st-phrase-action');
@@ -192,7 +192,6 @@ export function addPhraseSettings(canvas, config) {
             add.focus();
         };
         fields.append(remove);
-        settings.append(fields);
     }
 
     add.onclick = () => {

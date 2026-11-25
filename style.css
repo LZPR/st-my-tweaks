@@ -89,7 +89,7 @@
 .st-phrase-legend, .st-phrase-strip { display: flex; flex-wrap: wrap; align-items: center; }
 .st-phrase-legend { gap: 4px 16px; font-size: .8em; color: #bfc2c8; margin: 10px 0; }
 .st-phrase-strip { gap: 6px; padding: 10px; border-radius: 8px; background: #090a0b; justify-content: var(--phrase-align); }
-:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position]::before {
+:is(.st-phrase-legend, .st-phrase-strip) > [data-position]::before {
     content: '';
     display: inline-block;
     width: .48em;
@@ -99,8 +99,8 @@
     vertical-align: .1em;
     margin-right: .42em;
 }
-:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position="chat"]::before { background: #94c2ae; border-radius: 1px; }
-:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position="fullscreen"]::before { background: #b7a9cf; border-radius: 0; transform: rotate(45deg); }
+:is(.st-phrase-legend, .st-phrase-strip) > [data-position="chat"]::before { background: #94c2ae; border-radius: 1px; }
+:is(.st-phrase-legend, .st-phrase-strip) > [data-position="fullscreen"]::before { background: #b7a9cf; border-radius: 0; transform: rotate(45deg); }
 .st-phrase-chip { zoom: var(--phrase-scale); touch-action: none; cursor: grab; }
 .st-phrase-chip:active { cursor: grabbing; }
 .st-phrase-chip.muted { background: #101113; color: #b6b7bc; border-style: dashed; }

@@ -226,7 +226,6 @@ function createToolbar(getEditor, config, position) {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = shortcut.name;
-        button.dataset.position = shortcut.position;
         if (shortcut.texts?.length > 1) enableTextPicker(button, getEditor, shortcut);
         if (shortcut.builtin === 'quotes') {
             button.setAttribute('aria-label', '插入或切换引号');
