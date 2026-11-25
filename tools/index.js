@@ -8,5 +8,6 @@ import { messageMenu } from './message-menu.js';
 import { storyRoutes } from './story-routes.js';
 import { assistantChat } from './assistant-chat.js';
 import { attachChat } from './attach-chat.js';
+import { visualInput } from './visual-input.js';
 
-export const tools = [autoExpandEditor, expandedEditorShortcuts, promptEditHistory, promptDrafts, plistEditor, randomName, messageMenu, storyRoutes, assistantChat, attachChat];
+export const tools = [autoExpandEditor, expandedEditorShortcuts, promptEditHistory, promptDrafts, plistEditor, randomName, messageMenu, storyRoutes, assistantChat, attachChat, visualInput];
