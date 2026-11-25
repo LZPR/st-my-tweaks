@@ -1,7 +1,7 @@
 import { createPoseEditor } from './pose-editor.js';
 import { describePose, drawPose } from './pose.js';
 
-async function poseFiles(points, note) {
+async function poseFiles(points, note, includePoseData) {
     const canvas = document.createElement('canvas');
     canvas.width = 800;
     canvas.height = 880;
@@ -12,10 +12,15 @@ async function poseFiles(points, note) {
     drawPose(ctx, points);
     const image = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!image) throw new Error('骨架图生成失败，请重试。');
-    const data = describePose(points, note, canvas.width, canvas.height);
     const name = '姿态-' + Date.now();
-    return [new File([image], name + '.png', { type: 'image/png' }),
-        new File([JSON.stringify(data, null, 2)], name + '.txt', { type: 'text/plain' })];
+    const files = [new File([image], name + '.png', { type: 'image/png' })];
+    if (includePoseData || note.trim()) {
+        const text = includePoseData
+            ? JSON.stringify(describePose(points, note, canvas.width, canvas.height), null, 2)
+            : note;
+        files.push(new File([text], name + '.txt', { type: 'text/plain' }));
+    }
+    return files;
 }
 
 let syncEntry;
@@ -51,7 +56,7 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await poseFiles(structuredClone(points), note.value);
+                const files = await poseFiles(structuredClone(points), note.value, getConfig().includePoseData !== false);
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
@@ -85,14 +90,45 @@ function start(context, getConfig) {
 }
 
 function renderSettings(canvas, draft) {
-    const label = document.createElement('label');
-    label.className = 'checkbox_label';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = draft.showPoseEntry !== false;
-    checkbox.onchange = () => { draft.showPoseEntry = checkbox.checked; };
-    label.append(checkbox, '在输入框扩展菜单中显示「姿态编辑」');
-    canvas.append(label);
+    for (const [key, title] of [
+        ['showPoseEntry', '在输入框扩展菜单中显示「姿态编辑」'],
+        ['includePoseData', '附加姿态数据文本（关节坐标与几何量）'],
+    ]) {
+        const label = document.createElement('label');
+        label.className = 'checkbox_label';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = draft[key] !== false;
+        checkbox.onchange = () => { draft[key] = checkbox.checked; };
+        label.append(checkbox, title);
+        canvas.append(label);
+    }
+    const hint = document.createElement('small');
+    hint.textContent = '关闭后只附骨架图；填写了注释时，另附注释原文。';
+    const status = document.createElement('p');
+    status.setAttribute('role', 'status');
+    status.textContent = '正在检查当前连接的图片内联状态…';
+    canvas.append(hint, status);
+    showInlineStatus(status);
+}
+
+async function showInlineStatus(status) {
+    try {
+        const { isImageInliningSupported, getChatCompletionModel } = await import('../../../../openai.js');
+        const ctx = SillyTavern.getContext();
+        if (ctx.mainApi !== 'openai') {
+            status.textContent = '当前连接未使用聊天补全，ST 不会通过此路径内联骨架图。';
+            return;
+        }
+        const settings = ctx.chatCompletionSettings;
+        const model = getChatCompletionModel(settings) || '当前模型';
+        const support = isImageInliningSupported() ? 'ST 已启用图片内联。'
+            : settings.media_inlining ? 'ST 未将当前模型识别为可内联图片。'
+                : 'ST 已关闭「发送内联媒体」。';
+        status.textContent = model + ' · ' + support;
+    } catch {
+        status.textContent = '无法读取 ST 的图片内联状态，可在「预览请求」中检查。';
+    }
 }
 
 export const visualInput = {
