@@ -12,7 +12,7 @@ export function createSceneEditor() {
             <button type="button" data-tool="free">轮廓</button>
             <button type="button" data-tool="rect">矩形</button>
             <button type="button" data-tool="move">选择 / 移动</button>
-        </div><div class="stmt-scene-paper"><canvas aria-label="场景画板"></canvas></div>
+        </div><div class="stmt-scene-paper"><canvas tabindex="0" aria-label="场景画板"></canvas></div>
         <small data-hint></small></section>
         <aside><section><h3>画笔颜色</h3><div class="stmt-scene-palette"></div></section>
         <section><h3>场景物体</h3><select aria-label="选择场景物体"></select></section>
