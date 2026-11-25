@@ -1,6 +1,8 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
 import { addPhraseSettings } from './editor-phrases.js';
 
+import { getPhrases } from './editor-phrase-catalog.js';
+
 const chatEditorSelector = 'textarea#send_textarea';
 const editorSelector = `textarea.maximized_textarea, ${chatEditorSelector}`;
 const toolbarClass = 'st-my-tweaks-editor-shortcuts';
@@ -66,6 +68,30 @@ function toggleQuotes(editor) {
     replaceRange(editor, start, end, open + value.slice(start, end) + close, start + 1, end + 1);
 }
 
+function togglePair(editor, pair) {
+    const { value, selectionStart: start, selectionEnd: end } = editor;
+    const [open, close] = pair;
+    // Match delimiters in context so selecting two adjacent pairs never strips their outer marks.
+    const stack = [];
+    if (start !== end) {
+        for (let i = 0; i < value.length; i++) {
+            const mark = value[i];
+            if (mark === '\\') { i++; continue; }
+            if (mark === close && stack.length) {
+                const left = stack.pop();
+                if ((left === start && i + 1 === end) || (left + 1 === start && i === end)) {
+                    const inner = value.slice(left + 1, i);
+                    replaceRange(editor, left, i + 1, inner, left, left + inner.length);
+                    return;
+                }
+            } else if (mark === open) {
+                stack.push(i);
+            }
+        }
+    }
+    replaceRange(editor, start, end, open + value.slice(start, end) + close, start + 1, end + 1);
+}
+
 function applyToolbarSettings(toolbar, config) {
     toolbar.style.justifyContent = alignments.has(config.alignment) ? config.alignment : 'center';
     for (const button of toolbar.children) {
@@ -120,18 +146,13 @@ function createToolbar(getEditor, config, position) {
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
     toolbar.addEventListener('pointerdown', event => event.preventDefault());
 
-    const shortcuts = [
-        { name: '{{char}}', text: '{{char}}' },
-        { name: '{{user}}', text: '{{user}}' },
-        { name: '“”', quotes: true },
-    ];
-    const phrases = (config.phrases ?? []).filter(p => !p.hidden);
-    shortcuts.push(...phrases.filter(p => p.position === 'both'), ...phrases.filter(p => p.position === position));
+    const phrases = getPhrases(config).filter(p => !p.hidden);
+    const shortcuts = [...phrases.filter(p => p.position === 'both'), ...phrases.filter(p => p.position === position)];
     for (const shortcut of shortcuts) {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = shortcut.name;
-        if (shortcut.quotes) {
+        if (shortcut.builtin === 'quotes') {
             button.setAttribute('aria-label', '插入或切换引号');
         }
         button.addEventListener('click', () => {
@@ -139,8 +160,10 @@ function createToolbar(getEditor, config, position) {
             if (!editor) {
                 return;
             }
-            if (shortcut.quotes) {
+            if (shortcut.builtin === 'quotes') {
                 toggleQuotes(editor);
+            } else if (shortcut.builtin && shortcut.text === undefined) {
+                togglePair(editor, shortcut.name);
             } else {
                 const { selectionStart: start, selectionEnd: end } = editor;
                 replaceRange(editor, start, end, shortcut.text, start + shortcut.text.length);

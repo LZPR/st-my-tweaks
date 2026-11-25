@@ -1,3 +1,5 @@
+import { getPhrases } from './editor-phrase-catalog.js';
+
 const positions = new Map([['both', '都有'], ['chat', '仅输入框'], ['fullscreen', '仅全屏']]);
 
 function element(tag, className, text) {
@@ -16,11 +18,11 @@ function button(text, title) {
 }
 
 export function addPhraseSettings(canvas, config) {
-    const phrases = config.phrases ??= [];
+    const phrases = config.phrases = getPhrases(config);
     const section = element('section', 'st-phrases');
     const header = element('div', 'st-phrases-heading');
     const add = button('＋ 添加短语', '添加短语');
-    header.append(element('h4', '', '自定义短语'), add);
+    header.append(element('h4', '', '快捷短语'), add);
     const lists = element('div', 'st-phrases-lists');
     section.append(header, lists);
     canvas.append(section);
@@ -29,7 +31,7 @@ export function addPhraseSettings(canvas, config) {
     const groups = new Map();
 
     function move(phrase, position, before) {
-        if (before === phrase) return;
+        if (before === phrase || (phrase.builtin && position !== 'both')) return;
         phrases.splice(phrases.indexOf(phrase), 1);
         phrase.position = position;
         phrases.splice(before ? phrases.indexOf(before) : phrases.length, 0, phrase);
@@ -115,7 +117,7 @@ export function addPhraseSettings(canvas, config) {
         text.value = phrase.text;
         text.oninput = () => {
             phrase.text = text.value;
-            preview.lastElementChild.textContent = phrase.text || '填写短语内容';
+            preview.lastElementChild.textContent = phrase.builtin ? '内置短语' : phrase.text || '填写短语内容';
         };
         field('填充文本', text);
         const remove = button('删除短语', '删除短语');
@@ -149,6 +151,7 @@ export function addPhraseSettings(canvas, config) {
             edit.classList.add('st-phrase-edit');
             edit.setAttribute('aria-expanded', String(editing === phrase));
             edit.append(element('strong', '', phrase.name || '新短语'), element('small', '', phrase.text || '填写短语内容'));
+            edit.disabled = Boolean(phrase.builtin);
             edit.onclick = () => {
                 editing = editing === phrase ? undefined : phrase;
                 render();
@@ -180,7 +183,7 @@ export function addPhraseSettings(canvas, config) {
     };
     render();
     return () => {
-        const invalid = phrases.find(item => !item.name.trim() || !item.text.length);
+        const invalid = phrases.find(item => !item.builtin && (!item.name.trim() || !item.text.length));
         if (!invalid) return true;
         editing = invalid;
         render();
