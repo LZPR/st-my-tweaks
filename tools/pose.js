@@ -52,18 +52,24 @@ function jointColor(index) {
 }
 
 // Caller sets the transform from pose units to display or output pixels.
-export function drawPose(ctx, points, selected = -1) {
+export function drawPose(ctx, points, selected = -1, personColor) {
     ctx.lineCap = 'round';
     for (const [a, b] of bones) {
-        ctx.strokeStyle = jointColor(b);
+        ctx.strokeStyle = personColor ?? jointColor(b);
+        if (personColor) {
+            const left = joints[b][0].startsWith('L');
+            ctx.lineCap = left ? 'butt' : 'round';
+            ctx.setLineDash(left ? [10, 5] : []);
+        }
         ctx.lineWidth = b >= 14 ? 3 : 7;
         ctx.beginPath();
         ctx.moveTo(...points[a]);
         ctx.lineTo(...points[b]);
         ctx.stroke();
     }
+    if (personColor) ctx.setLineDash([]);
     points.forEach(([x, y], index) => {
-        ctx.fillStyle = jointColor(index);
+        ctx.fillStyle = personColor ?? jointColor(index);
         ctx.strokeStyle = '#17232a';
         ctx.lineWidth = 1.8;
         ctx.beginPath();

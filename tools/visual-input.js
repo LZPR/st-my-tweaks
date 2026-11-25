@@ -1,27 +1,21 @@
 import { createPoseEditor } from './pose-editor.js';
-import { drawPose } from './pose.js';
-import { poseMode, poseModes, poseText } from './pose-export.js';
+import { renderSceneImage } from './pose-scene.js';
+import { poseMode, poseModes, sceneText } from './pose-export.js';
 import { poseFileStem } from './pose-context.js';
 
-async function poseImage(points) {
+async function poseImage(people) {
     const canvas = document.createElement('canvas');
-    canvas.width = 800;
-    canvas.height = 880;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#17232a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(2, 2);
-    drawPose(ctx, points);
+    renderSceneImage(canvas, people);
     const image = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!image) throw new Error('骨架图生成失败，请重试。');
     return image;
 }
 
-async function poseFiles(points, note, mode, currentOnly) {
+async function poseFiles(people, note, mode, currentOnly) {
     const name = poseFileStem(currentOnly);
     const files = [];
-    if (mode.image) files.push(new File([await poseImage(points)], name + '.png', { type: 'image/png' }));
-    const text = poseText(points, note, mode);
+    if (mode.image) files.push(new File([await poseImage(people)], name + '.png', { type: 'image/png' }));
+    const text = sceneText(people, note, mode);
     if (text) files.push(new File([text], name + '.txt', { type: 'text/plain' }));
     return files;
 }
@@ -57,7 +51,7 @@ function start(context, getConfig) {
     }
     entry.onclick = () => {
         if (active) return;
-        const { panel, points, note } = createPoseEditor();
+        const { panel, people, note } = createPoseEditor();
         const mode = modeSelector('本次发送档位', getConfig());
         panel.querySelector('.stmt-pose-controls').append(mode.label);
         const dialog = document.createElement('dialog');
@@ -71,7 +65,7 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await poseFiles(structuredClone(points), note.value,
+                const files = await poseFiles(structuredClone(people), note.value,
                     poseMode({ poseMode: mode.select.value }), getConfig().currentRequestOnly === true);
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
@@ -137,7 +131,7 @@ function renderSettings(canvas, draft) {
     };
     function showEstimate() {
         const [thinkingScore, thinkingCost, fastScore, fastCost] = benchmark[mode.select.value];
-        estimate.textContent = 'DeepSeek Flash 样本（每百次，空闲时段估价）：思考 '
+        estimate.textContent = 'DeepSeek Flash 单人样本（每百次，空闲时段估价）：思考 '
             + thinkingScore + ' 题正确，约 ¥' + thinkingCost + '；非思考 '
             + fastScore + ' 题正确，约 ¥' + fastCost + '。输出上限 2048 token。';
     }
