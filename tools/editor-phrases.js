@@ -22,29 +22,35 @@ export function addPhraseSettings(canvas, config) {
     const header = element('div', 'st-phrases-heading');
     const add = button('＋ 添加短语', 'st-phrase-action');
     header.append(element('h4', '', '快捷短语'), add);
-    const lists = element('div', 'st-phrases-lists');
+    const legend = element('div', 'st-phrase-legend');
+    for (const [position, label] of positions) {
+        const item = element('span', '', label);
+        item.dataset.position = position;
+        legend.append(item);
+    }
+    const lists = element('div', 'st-phrase-strip');
+    lists.setAttribute('role', 'group');
+    lists.setAttribute('aria-label', '快捷短语');
     const settings = element('section', 'st-phrase-settings');
-    section.append(header, element('small', 'st-phrase-hint', '点选按钮设置短语，拖动可排序。虚线按钮已隐藏。'), lists);
+    section.append(header, element('small', 'st-phrase-hint', '点选按钮设置短语，拖动可排序。虚线按钮已隐藏。'), legend, lists);
     canvas.append(section, settings);
 
     let selected = phrases[0];
     const chips = new Map();
 
-    function move(phrase, position, before) {
-        if (before === phrase || (phrase.builtin && position !== 'both')) return;
+    function move(phrase, before) {
+        if (before === phrase) return;
         phrases.splice(phrases.indexOf(phrase), 1);
-        phrase.position = position;
         phrases.splice(before ? phrases.indexOf(before) : phrases.length, 0, phrase);
     }
 
     function attachDrag(chip, phrase) {
         chip.onkeydown = event => {
-            const siblings = phrases.filter(item => item.position === phrase.position);
-            const index = siblings.indexOf(phrase);
+            const index = phrases.indexOf(phrase);
             const direction = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
-            if (!direction || !siblings[index + direction]) return;
+            if (!direction || !phrases[index + direction]) return;
             event.preventDefault();
-            move(phrase, phrase.position, siblings[index + (direction < 0 ? -1 : 2)]);
+            move(phrase, phrases[index + (direction < 0 ? -1 : 2)]);
             select(phrase);
             chips.get(phrase).focus();
         };
@@ -55,17 +61,14 @@ export function addPhraseSettings(canvas, config) {
             let marker;
             function locate(event) {
                 marker?.classList.remove('drop-before', 'drop-end');
-                const group = document.elementFromPoint(event.clientX, event.clientY)?.closest('.st-phrase-group');
-                if (!lists.contains(group) || (phrase.builtin && group.dataset.position !== 'both')) return;
-                const position = group.dataset.position;
+                if (!lists.contains(document.elementFromPoint(event.clientX, event.clientY))) return;
                 const before = phrases.find(item => {
-                    if (item.position !== position) return false;
                     const rect = chips.get(item).getBoundingClientRect();
                     return event.clientY < rect.top || (event.clientY <= rect.bottom && event.clientX < rect.left + rect.width / 2);
                 });
-                marker = before ? chips.get(before) : group;
+                marker = before ? chips.get(before) : lists;
                 marker.classList.add(before ? 'drop-before' : 'drop-end');
-                return { position, before };
+                return { before };
             }
             chip.onpointermove = event => {
                 if (Math.hypot(event.clientX - down.clientX, event.clientY - down.clientY) >= 5) dragging = true;
@@ -74,7 +77,7 @@ export function addPhraseSettings(canvas, config) {
             chip.onpointerup = event => {
                 if (!dragging) return;
                 const target = locate(event);
-                if (target) move(phrase, target.position, target.before);
+                if (target) move(phrase, target.before);
                 select(phrase);
             };
             chip.onlostpointercapture = () => {
@@ -95,28 +98,19 @@ export function addPhraseSettings(canvas, config) {
     function drawLists() {
         chips.clear();
         lists.replaceChildren();
-        for (const [position, label] of positions) {
-            const group = element('div', 'st-phrase-group');
-            group.dataset.position = position;
-            const strip = element('div', 'st-phrase-strip');
-            strip.setAttribute('role', 'group');
-            strip.setAttribute('aria-label', label);
-            group.append(element('h5', '', label), strip);
-            lists.append(group);
-            for (const phrase of phrases.filter(item => item.position === position)) {
-                const chip = button(phrase.name || '新短语', 'st-phrase-chip');
-                chip.setAttribute('aria-pressed', String(selected === phrase));
-                chip.classList.toggle('muted', Boolean(phrase.hidden));
-                chip.title = [phrase.name || '新短语', phrase.builtin ? '内置短语' : '自定义短语', phrase.hidden ? '已隐藏' : '显示中'].join(' · ');
-                chip.onclick = () => {
-                    select(phrase);
-                    chips.get(phrase).focus({ preventScroll: true });
-                };
-                attachDrag(chip, phrase);
-                chips.set(phrase, chip);
-                strip.append(chip);
-            }
-            if (!strip.childElementCount) strip.append(element('small', 'st-phrase-empty', '暂无短语'));
+        for (const phrase of phrases) {
+            const chip = button(phrase.name || '新短语', 'st-phrase-chip');
+            chip.dataset.position = phrase.position;
+            chip.setAttribute('aria-pressed', String(selected === phrase));
+            chip.classList.toggle('muted', Boolean(phrase.hidden));
+            chip.title = [phrase.name || '新短语', positions.get(phrase.position), phrase.builtin ? '内置短语' : '自定义短语', phrase.hidden ? '已隐藏' : '显示中'].join(' · ');
+            chip.onclick = () => {
+                select(phrase);
+                chips.get(phrase).focus({ preventScroll: true });
+            };
+            attachDrag(chip, phrase);
+            chips.set(phrase, chip);
+            lists.append(chip);
         }
     }
 
@@ -152,7 +146,7 @@ export function addPhraseSettings(canvas, config) {
         const position = element('select');
         for (const [value, label] of positions) position.add(new Option(label, value));
         position.value = phrase.position;
-        position.onchange = () => { move(phrase, position.value); drawLists(); };
+        position.onchange = () => { phrase.position = position.value; drawLists(); };
         field('显示位置', position);
         const text = element('textarea');
         text.rows = 2;

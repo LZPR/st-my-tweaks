@@ -83,24 +83,31 @@
 
 .st-phrases, .st-phrase-settings { border-top: 1px solid var(--phrase-line); padding-top: 12px; }
 .st-phrases-heading { justify-content: space-between; }
-.st-phrases-heading h4, .st-phrase-group h5 { margin: 0; }
-.st-phrase-hint, .st-phrase-empty { opacity: 0.75; font-size: 0.85em; }
+.st-phrases-heading h4 { margin: 0; }
+.st-phrase-hint { opacity: 0.75; font-size: 0.85em; }
 .st-phrase-hint { display: block; margin: 4px 0 0; }
-.st-phrases-lists { display: grid; gap: 10px; margin-top: 12px; }
-.st-phrase-group {
-    background: color-mix(in srgb, currentColor 4%, transparent);
-    border-radius: 8px;
-    padding: 8px 10px;
+.st-phrase-legend, .st-phrase-strip { display: flex; flex-wrap: wrap; align-items: center; }
+.st-phrase-legend { gap: 4px 16px; font-size: .8em; color: #bfc2c8; margin: 10px 0; }
+.st-phrase-strip { gap: 6px; padding: 10px; border-radius: 8px; background: #090a0b; justify-content: var(--phrase-align); }
+:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position]::before {
+    content: '';
+    display: inline-block;
+    width: .48em;
+    height: .48em;
+    background: #adb2bd;
+    border-radius: 50%;
+    vertical-align: .1em;
+    margin-right: .42em;
 }
-.st-phrase-group h5 { font-size: 0.8em; font-weight: 600; margin-bottom: 5px; }
-.st-phrase-strip { display: flex; flex-wrap: wrap; gap: 5px; justify-content: var(--phrase-align); }
+:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position="chat"]::before { background: #94c2ae; border-radius: 1px; }
+:is(.st-phrase-legend, .st-phrase-strip, .st-my-tweaks-editor-shortcuts) > [data-position="fullscreen"]::before { background: #b7a9cf; border-radius: 0; transform: rotate(45deg); }
 .st-phrase-chip { zoom: var(--phrase-scale); touch-action: none; cursor: grab; }
 .st-phrase-chip:active { cursor: grabbing; }
 .st-phrase-chip.muted { background: #101113; color: #b6b7bc; border-style: dashed; }
 .st-phrase-chip[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #9bb7cf; }
 .st-phrase-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .st-phrase-chip.drop-before { box-shadow: -3px 0 #9bb7cf; }
-.st-phrase-group.drop-end { box-shadow: inset -3px 0 #9bb7cf; }
+.st-phrase-strip.drop-end { box-shadow: inset -3px 0 #9bb7cf; }
 .st-phrase-visible { display: inline-flex; gap: 5px; align-items: center; font-size: 0.9em; }
 .st-phrase-action {
     font: inherit;

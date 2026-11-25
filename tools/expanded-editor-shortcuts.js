@@ -146,12 +146,12 @@ function createToolbar(getEditor, config, position) {
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
     toolbar.addEventListener('pointerdown', event => event.preventDefault());
 
-    const phrases = getPhrases(config).filter(p => !p.hidden);
-    const shortcuts = [...phrases.filter(p => p.position === 'both'), ...phrases.filter(p => p.position === position)];
+    const shortcuts = getPhrases(config).filter(p => !p.hidden && (p.position === 'both' || p.position === position));
     for (const shortcut of shortcuts) {
         const button = document.createElement('button');
         button.type = 'button';
         button.textContent = shortcut.name;
+        button.dataset.position = shortcut.position;
         if (shortcut.builtin === 'quotes') {
             button.setAttribute('aria-label', '插入或切换引号');
         }
