@@ -44,7 +44,7 @@
     padding: 2px 6px 4px;
 }
 
-#send_form:not(:has(> #nonQRFormItems > #send_textarea:focus)) > .st-my-tweaks-chat-shortcuts {
+#send_form:not(:has(> #nonQRFormItems > #send_textarea:focus)) > .st-my-tweaks-chat-shortcuts:not(:has(dialog[open])) {
     display: none;
 }
 
@@ -124,6 +124,44 @@
 .st-phrase-fields label:has(textarea) { grid-column: 1 / -1; }
 .st-phrase-fields textarea { field-sizing: content; min-height: 3.5em; resize: vertical; }
 .st-phrase-fields button { justify-self: start; }
+.st-phrase-alternatives { grid-column: 1 / -1; }
+.st-phrase-inputs { display: grid; gap: 6px; margin-top: 6px; }
+.st-phrase-text-row { display: flex; align-items: start; gap: 6px; }
+.st-phrase-text-row textarea { flex: 1; min-width: 0; margin: 0; }
+.st-phrase-picker {
+    box-sizing: border-box;
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(24rem, 90vw);
+    max-height: 75dvh;
+    overflow: auto;
+    background: #101113;
+    color: #ededee;
+    border: 1px solid #656971;
+    border-radius: 10px;
+    padding: 14px;
+    text-align: start;
+    text-shadow: none;
+    color-scheme: dark;
+}
+.st-phrase-picker::backdrop { background: rgb(0 0 0 / 65%); }
+.st-phrase-picker h4 { margin: 0 0 10px; overflow-wrap: anywhere; }
+.st-phrase-picker button {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px 10px;
+    color: inherit;
+    background: #1a1b1e;
+    border: 1px solid #60636b;
+    border-radius: 6px;
+    text-align: start;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.st-phrase-picker .st-phrase-cancel { width: auto; margin-inline-start: auto; }
 
 .st-my-tweaks-prompt-history {
     box-sizing: border-box;

@@ -135,6 +135,79 @@ function renderSettings(canvas, config) {
     return addPhraseSettings(canvas, config);
 }
 
+function enableTextPicker(button, getEditor, shortcut) {
+    let timer;
+    let suppressClick = false;
+    function openPicker() {
+        const editor = getEditor();
+        if (!button.isConnected || !editor?.isConnected) return;
+        const { selectionStart: start, selectionEnd: end } = editor;
+        const dialog = document.createElement('dialog');
+        dialog.className = 'st-phrase-picker';
+        dialog.setAttribute('aria-label', shortcut.name + ' · 选择填充文本');
+        const heading = document.createElement('h4');
+        heading.textContent = shortcut.name + ' · 选择填充文本';
+        dialog.append(heading);
+        for (const value of shortcut.texts) {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.textContent = value;
+            option.onclick = () => {
+                dialog.close();
+                if (editor.isConnected) replaceRange(editor, start, end, value, start + value.length);
+            };
+            dialog.append(option);
+        }
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'st-phrase-cancel';
+        cancel.textContent = '取消';
+        cancel.onclick = () => dialog.close();
+        dialog.append(cancel);
+        dialog.onclose = () => {
+            dialog.remove();
+            editor.focus({ preventScroll: true });
+        };
+        button.after(dialog);
+        dialog.showModal();
+    }
+    button.title = '单击随机填充，长按选择文本';
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.addEventListener('pointerdown', down => {
+        if (!down.isPrimary || down.button !== 0) return;
+        clearTimeout(timer);
+        suppressClick = false;
+        button.setPointerCapture(down.pointerId);
+        timer = setTimeout(() => {
+            suppressClick = true;
+            openPicker();
+        }, 500);
+        button.onpointermove = event => {
+            if (Math.hypot(event.clientX - down.clientX, event.clientY - down.clientY) > 10) {
+                clearTimeout(timer);
+                suppressClick = true;
+            }
+        };
+    });
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+        button.addEventListener(type, () => {
+            clearTimeout(timer);
+            button.onpointermove = null;
+        });
+    }
+    button.oncontextmenu = event => event.preventDefault();
+    button.onkeydown = event => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            openPicker();
+        }
+    };
+    button.addEventListener('click', event => {
+        if (suppressClick && event.detail !== 0) event.stopImmediatePropagation();
+        suppressClick = false;
+    });
+}
+
 function createToolbar(getEditor, config, position) {
     const toolbar = document.createElement('div');
     toolbar.className = `flex-container wide100p ${toolbarClass}`;
@@ -144,7 +217,9 @@ function createToolbar(getEditor, config, position) {
     toolbar.setAttribute('role', 'group');
     toolbar.setAttribute('aria-label', position === 'chat' ? '聊天快捷输入' : '全屏编辑快捷输入');
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
-    toolbar.addEventListener('pointerdown', event => event.preventDefault());
+    toolbar.addEventListener('pointerdown', event => {
+        if (!event.target.closest('dialog')) event.preventDefault();
+    });
 
     const shortcuts = getPhrases(config).filter(p => !p.hidden && (p.position === 'both' || p.position === position));
     for (const shortcut of shortcuts) {
@@ -152,6 +227,7 @@ function createToolbar(getEditor, config, position) {
         button.type = 'button';
         button.textContent = shortcut.name;
         button.dataset.position = shortcut.position;
+        if (shortcut.texts?.length > 1) enableTextPicker(button, getEditor, shortcut);
         if (shortcut.builtin === 'quotes') {
             button.setAttribute('aria-label', '插入或切换引号');
         }
@@ -166,7 +242,8 @@ function createToolbar(getEditor, config, position) {
                 togglePair(editor, shortcut.name);
             } else {
                 const { selectionStart: start, selectionEnd: end } = editor;
-                replaceRange(editor, start, end, shortcut.text, start + shortcut.text.length);
+                const text = shortcut.builtin ? shortcut.text : shortcut.texts[Math.floor(Math.random() * shortcut.texts.length)];
+                replaceRange(editor, start, end, text, start + text.length);
             }
         });
         toolbar.append(button);

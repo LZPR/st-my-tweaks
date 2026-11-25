@@ -16,5 +16,9 @@ export function getPhrases(config) {
             missing.push({ builtin, ...definition, position: 'both', hidden: ['brackets', 'braces', 'straightQuotes', 'asterisks'].includes(builtin) });
         }
     }
-    return [...missing, ...saved];
+    return [...missing, ...saved.map(phrase => {
+        if (phrase.builtin || Array.isArray(phrase.texts)) return phrase;
+        const { text, ...settings } = phrase;
+        return { ...settings, texts: [text ?? ''] };
+    })];
 }

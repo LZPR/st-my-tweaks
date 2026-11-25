@@ -148,12 +148,43 @@ export function addPhraseSettings(canvas, config) {
         position.value = phrase.position;
         position.onchange = () => { phrase.position = position.value; drawLists(); };
         field('显示位置', position);
-        const text = element('textarea');
-        text.rows = 2;
-        text.required = true;
-        text.value = phrase.text;
-        text.oninput = () => { phrase.text = text.value; };
-        field('填充文本', text);
+        const alternatives = element('div', 'st-phrase-alternatives');
+        const title = element('div', 'st-phrases-heading');
+        const append = button('＋ 添加文本', 'st-phrase-action');
+        title.append('填充文本', append);
+        const inputs = element('div', 'st-phrase-inputs');
+        alternatives.append(title, inputs);
+        fields.append(alternatives);
+        function drawTexts() {
+            inputs.replaceChildren();
+            phrase.texts.forEach((value, index) => {
+                const row = element('div', 'st-phrase-text-row');
+                const text = element('textarea', 'text_pole');
+                text.rows = 2;
+                text.required = true;
+                text.setAttribute('aria-label', '填充文本 ' + (index + 1));
+                text.value = value;
+                text.oninput = () => { phrase.texts[index] = text.value; };
+                row.append(text);
+                if (phrase.texts.length > 1) {
+                    const removeText = button('×', 'st-phrase-action');
+                    removeText.setAttribute('aria-label', '删除填充文本 ' + (index + 1));
+                    removeText.onclick = () => {
+                        phrase.texts.splice(index, 1);
+                        drawTexts();
+                        inputs.querySelectorAll('textarea')[Math.min(index, phrase.texts.length - 1)].focus();
+                    };
+                    row.append(removeText);
+                }
+                inputs.append(row);
+            });
+        }
+        append.onclick = () => {
+            phrase.texts.push('');
+            drawTexts();
+            inputs.lastElementChild.querySelector('textarea').focus();
+        };
+        drawTexts();
         const remove = button('删除短语', 'st-phrase-action');
         remove.onclick = () => {
             phrases.splice(phrases.indexOf(phrase), 1);
@@ -165,17 +196,18 @@ export function addPhraseSettings(canvas, config) {
     }
 
     add.onclick = () => {
-        const phrase = { name: '', text: '', position: 'both' };
+        const phrase = { name: '', texts: [''], position: 'both' };
         phrases.push(phrase);
         select(phrase);
         settings.querySelector('.st-phrase-fields input').focus();
     };
     select(selected);
     return () => {
-        const invalid = phrases.find(item => !item.builtin && (!item.name.trim() || !item.text.length));
+        const invalid = phrases.find(item => !item.builtin && (!item.name.trim() || item.texts.includes('')));
         if (!invalid) return true;
         select(invalid);
-        const control = settings.querySelector(!invalid.name.trim() ? '.st-phrase-fields input' : 'textarea');
+        const control = !invalid.name.trim() ? settings.querySelector('.st-phrase-fields input')
+            : settings.querySelectorAll('textarea')[invalid.texts.indexOf('')];
         control.focus();
         control.setCustomValidity(!invalid.name.trim() ? '请填写按钮名称' : '请填写填充文本');
         control.reportValidity();
