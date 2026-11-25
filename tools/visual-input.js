@@ -1,4 +1,5 @@
 import { createPoseEditor } from './pose-editor.js';
+import { createSceneEditor } from './scene-editor.js';
 import { renderSceneImage } from './pose-scene.js';
 import { poseMode, poseModes, sceneText } from './pose-export.js';
 import { poseFileStem } from './pose-context.js';
@@ -30,16 +31,24 @@ function modeSelector(title, config) {
     return { label, select };
 }
 
-let syncEntry;
-function start(context, getConfig) {
+function menuEntry(title, icon) {
     const entry = document.createElement('button');
     entry.type = 'button';
     entry.className = 'list-group-item stmt-route-entry';
-    entry.innerHTML = '<i class="fa-solid fa-person fa-fw extensionsMenuExtensionButton" aria-hidden="true"></i><span>姿态编辑</span>';
+    entry.innerHTML = `<i class="fa-solid ${icon} fa-fw extensionsMenuExtensionButton" aria-hidden="true"></i><span>${title}</span>`;
     entry.setAttribute('aria-haspopup', 'dialog');
+    return entry;
+}
+
+let syncEntry;
+function start(context, getConfig) {
+    const entry = menuEntry('姿态编辑', 'fa-person');
+    const sceneEntry = menuEntry('场景编辑', 'fa-shapes');
     syncEntry = config => {
         if (config.showPoseEntry === false) entry.remove();
         else document.querySelector('#extensionsMenu').append(entry);
+        if (config.showSceneEntry === false) sceneEntry.remove();
+        else document.querySelector('#extensionsMenu').append(sceneEntry);
     };
     syncEntry(getConfig());
     let active;
@@ -49,14 +58,11 @@ function start(context, getConfig) {
         active.remove();
         active = undefined;
     }
-    entry.onclick = () => {
-        if (active) return;
-        const { panel, fullscreen, historyShortcut, getDraft } = createPoseEditor(poseMode(getConfig()).id,
-            template => SillyTavern.getContext().substituteParams(template));
+    function open(title, { panel, fullscreen, historyShortcut, getFiles }) {
         const dialog = document.createElement('dialog');
         dialog.className = 'stmt-pose-dialog';
-        dialog.setAttribute('aria-label', '姿态编辑');
-        dialog.addEventListener('keydown', historyShortcut);
+        dialog.setAttribute('aria-label', title);
+        if (historyShortcut) dialog.addEventListener('keydown', historyShortcut);
         const footer = document.createElement('footer');
         footer.innerHTML = '<button type="button">取消</button><button type="button" class="stmt-pose-attach">附加到消息</button>';
         const [cancel, attach] = footer.children;
@@ -69,9 +75,7 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const draft = getDraft();
-                const files = await poseFiles(draft.people, draft.note,
-                    poseMode({ poseMode: draft.mode }), getConfig().currentRequestOnly === true);
+                const files = await getFiles();
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
@@ -80,7 +84,7 @@ function start(context, getConfig) {
                 const input = document.querySelector('#file_form_input');
                 if (!composer || !input || !paste.clipboardData?.files.length || composer.dispatchEvent(paste)
                     || !files.every(file => Array.from(input.files).some(item => item.name === file.name))) {
-                    throw new Error('当前输入框未接收姿态附件，请重试。');
+                    throw new Error('当前输入框未接收附件，请重试。');
                 }
                 close();
                 composer.focus({ preventScroll: true });
@@ -94,12 +98,25 @@ function start(context, getConfig) {
         document.body.append(dialog);
         active = dialog;
         dialog.showModal();
+    }
+    entry.onclick = () => {
+        if (active) return;
+        const editor = createPoseEditor(poseMode(getConfig()).id,
+            template => SillyTavern.getContext().substituteParams(template));
+        open('姿态编辑', { ...editor, getFiles() {
+            const draft = editor.getDraft();
+            return poseFiles(draft.people, draft.note, poseMode({ poseMode: draft.mode }), getConfig().currentRequestOnly === true);
+        } });
+    };
+    sceneEntry.onclick = () => {
+        if (!active) open('场景编辑', createSceneEditor());
     };
     context.eventSource.on(context.eventTypes.CHAT_CHANGED, close);
     return () => {
         context.eventSource.removeListener(context.eventTypes.CHAT_CHANGED, close);
         close();
         entry.remove();
+        sceneEntry.remove();
         syncEntry = undefined;
     };
 }
@@ -112,6 +129,13 @@ function renderSettings(canvas, draft) {
     checkbox.checked = draft.showPoseEntry !== false;
     checkbox.onchange = () => { draft.showPoseEntry = checkbox.checked; };
     label.append(checkbox, '在输入框扩展菜单中显示「姿态编辑」');
+    const sceneLabel = document.createElement('label');
+    sceneLabel.className = 'checkbox_label';
+    const sceneCheckbox = document.createElement('input');
+    sceneCheckbox.type = 'checkbox';
+    sceneCheckbox.checked = draft.showSceneEntry !== false;
+    sceneCheckbox.onchange = () => { draft.showSceneEntry = sceneCheckbox.checked; };
+    sceneLabel.append(sceneCheckbox, '在输入框扩展菜单中显示「场景编辑」');
     const mode = modeSelector('默认发送档位', draft);
     const hint = document.createElement('small');
     const lifetime = document.createElement('label');
@@ -148,7 +172,7 @@ function renderSettings(canvas, draft) {
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = '正在检查当前连接的图片内联状态…';
-    canvas.append(label, mode.label, hint, estimate, status, lifetime, lifetimeHint);
+    canvas.append(label, sceneLabel, mode.label, hint, estimate, status, lifetime, lifetimeHint);
     showInlineStatus(status);
 }
 
