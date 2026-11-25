@@ -43,7 +43,7 @@ export function describePose(points, note, width, height) {
         geometry: { R: sideGeometry(pixels, 'R', height), L: sideGeometry(pixels, 'L', height) },
     };
 }
-const bones = [[1, 0], [1, 2], [2, 3], [3, 4], [1, 5], [5, 6], [6, 7],
+export const bones = [[1, 0], [1, 2], [2, 3], [3, 4], [1, 5], [5, 6], [6, 7],
     [1, 8], [8, 9], [9, 10], [1, 11], [11, 12], [12, 13],
     [0, 14], [14, 16], [0, 15], [15, 17]];
 

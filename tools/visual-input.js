@@ -58,17 +58,19 @@ function start(context, getConfig) {
         active.remove();
         active = undefined;
     }
-    function open(title, { panel, fullscreen, historyShortcut, getFiles }) {
+    function open(title, { panel, fullscreen, closePanels, dispose, historyShortcut, getFiles }) {
         const dialog = document.createElement('dialog');
         dialog.className = 'stmt-pose-dialog';
         dialog.setAttribute('aria-label', title);
         if (historyShortcut) dialog.addEventListener('keydown', historyShortcut);
+        if (dispose) dialog.addEventListener('close', dispose, { once: true });
         const footer = document.createElement('footer');
         footer.innerHTML = '<button type="button">取消</button><button type="button" class="stmt-pose-attach">附加到消息</button>';
         const [cancel, attach] = footer.children;
         cancel.onclick = close;
         dialog.oncancel = event => {
             event.preventDefault();
+            if (closePanels?.()) return;
             if (dialog.classList.contains('stmt-pose-fullscreen')) fullscreen(false);
             else close();
         };

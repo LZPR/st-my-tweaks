@@ -1,5 +1,6 @@
 import { joints } from './pose.js';
-import { drawScene, isClassicPose, newPerson } from './pose-scene.js';
+import { drawScene, newPerson } from './pose-scene.js';
+import { boardCamera, boardHits, scalePerson } from './pose-board.js';
 import { poseModes } from './pose-export.js';
 import { poseTree } from './pose-tree.js';
 
@@ -11,14 +12,23 @@ export function createPoseEditor(defaultMode, resolveName) {
         <button type="button" data-action="redo" title="还原 (Ctrl+Shift+Z)" aria-label="还原"><i class="fa-solid fa-rotate-right"></i></button>
         <button type="button" data-action="fullscreen" title="全屏编辑" aria-label="全屏编辑" aria-pressed="false"><i class="fa-solid fa-expand"></i></button></div></header>
         <div class="stmt-pose-layout"><section class="stmt-pose-stage" aria-label="骨骼画布">
-        <canvas width="800" height="880" tabindex="0"></canvas><div class="stmt-pose-legend"></div></section>
+        <canvas width="800" height="880" tabindex="0"></canvas><div class="stmt-pose-legend"></div>
+        <div class="stmt-board-dock">
+        <div class="stmt-board-adjust" hidden><button type="button" data-step="-1" aria-label="缩小">−</button>
+        <output></output><button type="button" data-step="1" aria-label="放大">＋</button>
+        <button type="button" data-action="fit">复位视图</button></div>
+        <div class="stmt-board-tools" role="toolbar" aria-label="画板工具"></div></div>
+        <div class="stmt-board-menu" hidden><button data-command="whole">选择整个人物</button>
+        <button data-command="add">添加人物</button><button data-command="person">人物设置</button>
+        <button data-command="note">场景注释</button><button data-command="mode">发送档位</button>
+        <button data-command="attach">附加到消息</button></div></section>
         <aside class="stmt-pose-sidebar"><nav aria-label="姿态场景"><h3>场景</h3><div role="tree" aria-label="场景树"></div></nav>
-        <section class="stmt-pose-inspector"><h3></h3>
+        <section class="stmt-pose-inspector"><button type="button" data-action="dismiss" aria-label="关闭画板面板">×</button><h3></h3>
         <div data-page="people"><button type="button" data-action="add">添加人物</button></div>
         <div data-page="person"><label>人物名称<input maxlength="128" placeholder="{{char}} 或 {{user}}"></label>
-        <small>可使用 ST 宏。拖动画布可平移整个人物。</small>
+        <small>可使用 ST 宏。用移动工具拖动整个人物。</small>
         <button type="button" data-action="remove">删除人物</button></div>
-        <div data-page="joint"><small>拖动关节或轻点画布定位。画布获得焦点后，可用方向键微调。</small></div>
+        <div data-page="joint"><small>选择工具点选关节，重复点按可切换重叠目标。用移动工具拖动，或按方向键微调。</small></div>
         <div data-page="note"><textarea rows="3" aria-label="场景注释" placeholder="例如：右手搭在对方肩上。"></textarea></div>
         <div data-page="mode"><select aria-label="本次发送档位"></select></div></section></aside></div>
         <div role="status" class="stmt-pose-status"></div>`;
@@ -35,7 +45,26 @@ export function createPoseEditor(defaultMode, resolveName) {
         return person;
     }
     let state = { people: [makePerson(0)], note: '', mode: defaultMode };
-    let activeId = 'P1', selected = 4, node = 'P1/4', placeSelected = false;
+    let activeId = 'P1', selected = 4, node = 'P1/4';
+    const camera = boardCamera();
+    const tools = { select: ['选择', 'arrow-pointer'], move: ['移动', 'arrows-up-down-left-right'],
+        scale: ['缩放', 'up-right-and-down-left-from-center'], view: ['查看', 'hand'] };
+    let tool = 'select', cycle;
+    const toolbar = find('.stmt-board-tools'), adjust = find('.stmt-board-adjust'), menu = find('.stmt-board-menu');
+    for (const [id, [label, icon]] of Object.entries(tools)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.tool = id;
+        btn.innerHTML = '<i aria-hidden="true" class="fa-solid fa-' + icon + '"></i> ' + label;
+        btn.onclick = () => setTool(id);
+        toolbar.append(btn);
+    }
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.textContent = '⋯';
+    more.setAttribute('aria-label', '画板操作');
+    more.setAttribute('aria-expanded', 'false');
+    toolbar.append(more);
     let drag, typing;
     const past = [], future = [];
     const person = () => state.people.find(p => p.id === activeId);
@@ -63,18 +92,38 @@ export function createPoseEditor(defaultMode, resolveName) {
         to.push(snapshot());
         ({ state, activeId, selected, node, nextNumber } = from.pop());
         typing = undefined;
-        placeSelected = false;
+        cycle = undefined;
         refresh(true);
     }
+    function frame() {
+        const box = canvas.getBoundingClientRect();
+        const bottom = panel.closest('.stmt-pose-fullscreen') ? 112 : 60;
+        const room = Math.max(1, box.height - 36 - bottom);
+        const fit = Math.max(.01, Math.min(box.width / 400, room / 440));
+        return { box, fit, left: (box.width - 400 * fit) / 2, top: 36 + (room - 440 * fit) / 2 };
+    }
     function paint() {
-        ctx.setTransform(2, 0, 0, 2, 0, 0);
-        ctx.clearRect(0, 0, 400, 440);
+        const { box, fit, left, top } = frame();
+        if (!box.width || !box.height) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = Math.round(box.width * dpr), h = Math.round(box.height * dpr);
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+        ctx.resetTransform();
+        ctx.clearRect(0, 0, w, h);
+        const v = camera.view;
+        ctx.setTransform(dpr * fit * v.scale, 0, 0, dpr * fit * v.scale, dpr * (left + fit * v.x), dpr * (top + fit * v.y));
         drawScene(ctx, state.people, person(), selected);
-        const part = joints[selected]?.[1] ?? '整个人物';
+        if (selected < 0 || tool === 'scale') {
+            const xs = person().points.map(p => p[0]), ys = person().points.map(p => p[1]);
+            ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1 / (fit * v.scale); ctx.setLineDash([5, 4]);
+            ctx.strokeRect(Math.min(...xs) - 8, Math.min(...ys) - 8, Math.max(...xs) - Math.min(...xs) + 16, Math.max(...ys) - Math.min(...ys) + 16);
+            ctx.setLineDash([]);
+        }
+        const part = tool === 'scale' ? '整个人物' : joints[selected]?.[1] ?? '整个人物';
         canvas.setAttribute('aria-label', person().name + ' · ' + part);
         const legend = find('.stmt-pose-legend');
-        legend.textContent = isClassicPose(state.people) ? '橙色：人物右侧　青色：人物左侧'
-            : person().id + ' · ' + person().name + '　实线：右侧 / 中线　虚线：左侧';
+        legend.textContent = person().id + ' · ' + person().name + ' / ' + part;
+        adjust.querySelector('output').textContent = tool === 'view' ? '视图 ' + Math.round(v.scale * 100) + '%' : '整个人物';
     }
     function refresh(reveal = false) {
         renderTree(state.people, node, reveal);
@@ -97,7 +146,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         if (state.people.some(p => p.id === id)) {
             activeId = id;
             selected = joint === undefined ? -1 : Number(joint);
-            placeSelected = selected >= 0;
+            cycle = undefined;
         }
         refresh();
     }
@@ -108,7 +157,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         state.people.push(p);
         activeId = node = p.id;
         selected = -1;
-        placeSelected = false;
+        cycle = undefined;
         refresh(true);
     };
     action('remove').onclick = () => {
@@ -118,7 +167,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         state.people.splice(index, 1);
         activeId = node = state.people[Math.min(index, state.people.length - 1)].id;
         selected = -1;
-        placeSelected = false;
+        cycle = undefined;
         refresh(true);
     };
     function editField(el, update) {
@@ -155,14 +204,53 @@ export function createPoseEditor(defaultMode, resolveName) {
         else restore(past, future);
     }
     function fullscreen(on) {
+        cancelDrag();
+        closePanels();
         panel.closest('dialog').classList.toggle('stmt-pose-fullscreen', on);
         const btn = action('fullscreen');
         btn.setAttribute('aria-pressed', String(on));
         btn.title = on ? '退出全屏' : '全屏编辑';
         btn.setAttribute('aria-label', btn.title);
         btn.firstElementChild.className = 'fa-solid ' + (on ? 'fa-compress' : 'fa-expand');
+        paint();
     }
     action('fullscreen').onclick = () => fullscreen(action('fullscreen').getAttribute('aria-pressed') === 'false');
+
+    function closePanels() {
+        const visible = !menu.hidden || panel.classList.contains('stmt-board-inspecting');
+        menu.hidden = true;
+        more.setAttribute('aria-expanded', 'false');
+        panel.classList.remove('stmt-board-inspecting');
+        return visible;
+    }
+    more.onclick = () => {
+        const show = menu.hidden;
+        closePanels();
+        menu.hidden = !show;
+        more.setAttribute('aria-expanded', String(show));
+    };
+    menu.onclick = event => {
+        const cmd = event.target.closest('[data-command]')?.dataset.command;
+        if (!cmd) return;
+        closePanels();
+        if (cmd === 'attach') { panel.closest('dialog').querySelector('.stmt-pose-attach').click(); return; }
+        if (cmd === 'add') action('add').click();
+        else choose(['whole', 'person'].includes(cmd) ? activeId : cmd);
+        if (cmd === 'whole') setTool('move');
+        else if (panel.closest('.stmt-pose-fullscreen')) panel.classList.add('stmt-board-inspecting');
+    };
+    action('dismiss').onclick = () => { closePanels(); canvas.focus(); };
+    function setTool(id) {
+        cancelDrag();
+        closePanels();
+        tool = id;
+        cycle = undefined;
+        for (const btn of toolbar.querySelectorAll('[data-tool]')) btn.setAttribute('aria-pressed', String(btn.dataset.tool === id));
+        canvas.dataset.tool = id;
+        adjust.hidden = id !== 'scale' && id !== 'view';
+        action('fit').hidden = id !== 'view';
+        paint();
+    }
 
     function move(before, dx, dy) {
         const positions = selected < 0 ? before : [before[selected]];
@@ -173,8 +261,8 @@ export function createPoseEditor(defaultMode, resolveName) {
         paint();
     }
     function position(event) {
-        const box = canvas.getBoundingClientRect();
-        return [(event.clientX - box.left) * 400 / box.width, (event.clientY - box.top) * 440 / box.height];
+        const { box, fit, left, top } = frame();
+        return [(event.clientX - box.left - left) / fit, (event.clientY - box.top - top) / fit];
     }
     function beginMove() {
         const before = snapshot();
@@ -183,41 +271,77 @@ export function createPoseEditor(defaultMode, resolveName) {
     function finishMove(step) {
         if (step.points.some(([x, y], i) => x !== step.owner.points[i][0] || y !== step.owner.points[i][1])) record(step.before);
     }
-    canvas.onpointerdown = event => {
-        if (drag || event.button !== 0) return;
-        const [x, y] = position(event);
-        let nearest = -1, distance = 22 * 400 / canvas.getBoundingClientRect().width;
-        if (selected >= 0 && !placeSelected) person().points.forEach(([px, py], i) => {
-            const d = Math.hypot(x - px, y - py);
-            if (d < distance) { nearest = i; distance = d; }
-        });
-        placeSelected = false;
-        if (nearest >= 0) selected = nearest;
+    function pick(event) {
+        const [x, y] = camera.world(position(event));
+        const radius = (event.pointerType === 'touch' ? 19 : 12) / (frame().fit * camera.view.scale);
+        const hits = boardHits(state.people, x, y, radius);
+        if (!hits.length) { cycle = undefined; return; }
+        const previous = cycle && Math.hypot(event.clientX - cycle.x, event.clientY - cycle.y) <= 6;
+        // Keep the first tap's ordering when a finger lands a few pixels off center.
+        const targets = previous && cycle.hits.every(h => hits.some(other => other.id === h.id && other.joint === h.joint))
+            ? cycle.hits : hits;
+        const index = targets === cycle?.hits ? (cycle.index + 1) % targets.length : 0;
+        cycle = { hits: targets, index, x: event.clientX, y: event.clientY };
+        ({ id: activeId, joint: selected } = targets[index]);
         node = selected < 0 ? activeId : activeId + '/' + selected;
-        canvas.focus({ preventScroll: true });
         refresh(true);
-        const [startX, startY] = selected >= 0 && nearest < 0 ? person().points[selected] : [x, y];
-        drag = { ...beginMove(), id: event.pointerId, startX, startY };
-        canvas.setPointerCapture(event.pointerId);
-        move(drag.points, x - startX, y - startY);
+    }
+    function adjustSize(factor) {
+        if (tool === 'view') camera.zoom(factor);
+        else {
+            const step = beginMove();
+            person().points = scalePerson(step.points, factor);
+            finishMove(step);
+        }
+        paint();
+    }
+    for (const btn of adjust.querySelectorAll('[data-step]')) btn.onclick = () => adjustSize(1.15 ** Number(btn.dataset.step));
+    action('fit').onclick = () => { camera.reset(); paint(); };
+    canvas.onwheel = event => {
+        if (tool !== 'view') return;
+        event.preventDefault();
+        camera.zoom(Math.exp(-Math.sign(event.deltaY) * .12), position(event));
+        paint();
     };
+    canvas.onpointerdown = event => {
+        if (event.button !== 0 || drag) return;
+        closePanels();
+        canvas.focus({ preventScroll: true });
+        canvas.setPointerCapture(event.pointerId);
+        if (tool === 'view') { camera.start(event.pointerId, position(event)); return; }
+        drag = { id: event.pointerId, origin: camera.world(position(event)), x: event.clientX, y: event.clientY,
+            step: tool === 'select' ? null : beginMove() };
+    };
+    function applyDrag(event) {
+        if (tool === 'move') {
+            const [x, y] = camera.world(position(event));
+            move(drag.step.points, x - drag.origin[0], y - drag.origin[1]);
+        } else if (tool === 'scale') {
+            person().points = scalePerson(drag.step.points, Math.exp((drag.y - event.clientY) / 140));
+            paint();
+        }
+    }
     canvas.onpointermove = event => {
-        if (drag?.id !== event.pointerId) return;
-        const [x, y] = position(event);
-        move(drag.points, x - drag.startX, y - drag.startY);
+        if (tool === 'view' && canvas.hasPointerCapture(event.pointerId)) {
+            camera.move(event.pointerId, position(event));
+            paint();
+        } else if (drag?.id === event.pointerId) applyDrag(event);
     };
     canvas.onpointerup = event => {
+        camera.end(event.pointerId);
         if (drag?.id !== event.pointerId) return;
-        finishMove(drag);
+        if (drag.step) { applyDrag(event); finishMove(drag.step); }
+        else if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= 8) pick(event);
         drag = undefined;
     };
     function cancelDrag() {
-        if (!drag) return;
-        drag.owner.points = drag.points;
+        camera.clear();
+        if (drag?.step) drag.step.owner.points = drag.step.points;
         drag = undefined;
         paint();
     }
     canvas.onlostpointercapture = canvas.onpointercancel = event => {
+        camera.end(event.pointerId);
         if (drag?.id === event.pointerId) cancelDrag();
     };
     panel.addEventListener('pointerdown', event => {
@@ -225,14 +349,17 @@ export function createPoseEditor(defaultMode, resolveName) {
     }, true);
     canvas.onkeydown = event => {
         const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-        if (!delta || drag) return;
+        if (!delta || drag || tool !== 'move') return;
         event.preventDefault();
         const step = beginMove();
         move(step.points, ...delta);
         finishMove(step);
     };
+    const observer = new ResizeObserver(paint);
+    observer.observe(canvas);
     refresh(true);
-    return { panel, fullscreen, historyShortcut, getDraft() {
+    setTool('select');
+    return { panel, fullscreen, closePanels, dispose: () => observer.disconnect(), historyShortcut, getDraft() {
         if (typing === name) resolvePerson();
         return structuredClone(state);
     } };
