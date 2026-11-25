@@ -1,4 +1,4 @@
-.st-my-tweaks-editor-shortcuts > button {
+.st-my-tweaks-editor-shortcuts > button, .st-phrase-chip {
     max-width: 100%;
     overflow-wrap: anywhere;
     appearance: none;
@@ -60,26 +60,27 @@
     gap: 4px;
 }
 
-.st-phrases { border-top: 1px solid var(--phrase-line); padding-top: 12px; }
+.st-phrases, .st-phrase-settings { border-top: 1px solid var(--phrase-line); padding-top: 12px; }
 .st-phrases-heading { justify-content: space-between; }
-.st-phrases h4, .st-phrases h5 { margin: 0; }
-.st-phrases-lists { display: grid; gap: 12px; margin-top: 12px; }
+.st-phrases-heading h4, .st-phrase-group h5 { margin: 0; }
+.st-phrase-hint, .st-phrase-empty { opacity: 0.75; font-size: 0.85em; }
+.st-phrase-hint { display: block; margin: 4px 0 0; }
+.st-phrases-lists { display: grid; gap: 10px; margin-top: 12px; }
 .st-phrase-group {
-    border: 1px solid var(--phrase-line);
-    border-radius: 9px;
-    padding: 8px 12px;
+    background: color-mix(in srgb, currentColor 4%, transparent);
+    border-radius: 8px;
+    padding: 8px 10px;
 }
-.st-phrase-group h5 { font-size: 0.86em; font-weight: 600; }
-.st-phrase-empty { display: block; opacity: 0.65; padding-top: 5px; }
-.st-phrase-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 4px 8px;
-    align-items: center;
-    border-top: 1px solid var(--phrase-line);
-    margin-top: 6px;
-    padding-top: 6px;
-}
+.st-phrase-group h5 { font-size: 0.8em; font-weight: 600; margin-bottom: 5px; }
+.st-phrase-strip { display: flex; flex-wrap: wrap; gap: 5px; justify-content: var(--phrase-align); }
+.st-phrase-chip { zoom: var(--phrase-scale); touch-action: none; cursor: grab; }
+.st-phrase-chip:active { cursor: grabbing; }
+.st-phrase-chip.muted { background: transparent; color: inherit; outline: 1px dashed var(--phrase-line); outline-offset: -1px; }
+.st-phrase-chip[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #9bb7cf; }
+.st-phrase-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+.st-phrase-chip.drop-before { box-shadow: -3px 0 #9bb7cf; }
+.st-phrase-group.drop-end { box-shadow: inset -3px 0 #9bb7cf; }
+.st-phrase-visible { display: inline-flex; gap: 5px; align-items: center; font-size: 0.9em; }
 .st-phrase-action {
     font: inherit;
     font-size: 0.85em;
@@ -91,14 +92,7 @@
     cursor: pointer;
 }
 .st-phrase-action:hover { background: color-mix(in srgb, currentColor 9%, transparent); }
-.st-phrase-handle { cursor: grab; touch-action: none; border: 0; font-size: 1.25em; }
-.st-phrase-edit { display: grid; gap: 2px; text-align: start; min-width: 0; border: 0; }
-.st-phrase-edit > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-phrase-edit small, .st-phrase-row.muted .st-phrase-edit { opacity: 0.65; }
-.st-phrase-row.moving { opacity: 0.55; }
-.st-phrase-row.drop-before { border-top-color: currentColor; }
-.st-phrase-group.drop-end { border-bottom-color: currentColor; }
-.st-phrase-fields { grid-column: 1 / -1; margin-block: 6px; }
+.st-phrase-fields { margin-top: 10px; }
 .st-phrase-fields label:has(textarea) { grid-column: 1 / -1; }
 .st-phrase-fields textarea { field-sizing: content; min-height: 3.5em; resize: vertical; }
 .st-phrase-fields button { justify-self: start; }
