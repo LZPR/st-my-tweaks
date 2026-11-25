@@ -1,7 +1,12 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
 
-import { quickPromptSelector, promptManagerEditorSelector, responsePresetSelectors, editorSelector, isEnabled, renderLocations, getToolbar, locateEditor, editorsChanged } from './prompt-toolbar.js';
+import {
+    quickPromptSelector, promptManagerEditorSelector, responsePresetSelectors, editorSelector,
+    expandedSelector, isEnabled, locations, renderLocations, getToolbar, locateEditor, editorsChanged,
+} from './prompt-toolbar.js';
 
+const fullscreenLocation = { id: 'fullscreen', label: '全屏编辑' };
+const historyLocations = [...locations, fullscreenLocation];
 const maxUndoSteps = 100;
 const deletionGroupDelay = 750;
 const groupedDeletionTypes = new Set(['deleteContentBackward', 'deleteContentForward', 'deleteWordBackward', 'deleteWordForward']);
@@ -199,8 +204,13 @@ function attachView(history, editor) {
 }
 
 function renderSettings(canvas, config) {
-    renderLocations(canvas, config);
+    renderLocations(canvas, config, historyLocations);
     canvas.append(createToolbarScaleSetting(config, '工具栏缩放'));
+}
+
+function isViewEnabled(editor, location, config) {
+    const setting = editor.matches(expandedSelector) ? fullscreenLocation : location;
+    return setting && isEnabled(setting, config);
 }
 
 export const promptEditHistory = {
@@ -217,7 +227,7 @@ export const promptEditHistory = {
             const scale = getToolbarScale(config) / 100;
             for (const [source, history] of histories) {
                 for (const [editor, view] of history.views) {
-                    if (!source.isConnected || !editor.isConnected || !isEnabled(history.location, config)) {
+                    if (!source.isConnected || !editor.isConnected || !isViewEnabled(editor, history.location, config)) {
                         view.remove();
                         history.views.delete(editor);
                         if (history.composing === editor) {
@@ -232,10 +242,12 @@ export const promptEditHistory = {
             }
 
             for (const editor of document.querySelectorAll(editorSelector)) {
-                const { source, location } = locateEditor(editor);
-                if (!location || !isEnabled(location, config)) {
+                const { source: original, location } = locateEditor(editor);
+                if (!isViewEnabled(editor, location, config)) {
                     continue;
                 }
+                // Only inline prompt fields share history with their fullscreen counterparts.
+                const source = location ? original : editor;
                 if (!histories.has(source)) {
                     const initial = snapshot(source);
                     histories.set(source, {
@@ -251,7 +263,7 @@ export const promptEditHistory = {
 
         const rebaseLocation = id => {
             for (const history of histories.values()) {
-                if (history.location.id === id) rebase(history);
+                if (history.location?.id === id) rebase(history);
             }
         };
         const onCharacterOpened = () => rebaseLocation('character');

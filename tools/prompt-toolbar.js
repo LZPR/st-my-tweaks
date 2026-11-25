@@ -54,7 +54,7 @@ export const locations = [
         selector: [...responsePresetSelectors.values()].join(', '),
     },
 ];
-export const expandedSelector = 'textarea.maximized_textarea[data-for]';
+export const expandedSelector = 'textarea.maximized_textarea';
 export const editorSelector = [...locations.map(location => location.selector), expandedSelector].join(', ');
 export function isEnabled(location, config) {
     return config[location.id] !== false;
@@ -88,7 +88,7 @@ export function getToolbar(editor) {
 }
 
 export function locateEditor(editor) {
-    const source = editor.matches(expandedSelector) ? document.getElementById(editor.dataset.for) : editor;
+    const source = editor.matches(expandedSelector) ? document.getElementById(editor.dataset.for ?? '') : editor;
     const location = locations.find(item => source?.matches(item.selector));
     return { source, location };
 }
