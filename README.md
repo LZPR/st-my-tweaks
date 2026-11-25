@@ -21,9 +21,13 @@ Windows 创建符号链接需要启用开发者模式或使用有相应权限的
 
 在扩展面板开启「预览请求」，打开角色聊天并写好草稿，从输入框旁的扩展菜单选择「预览请求」。消息按请求中的原始顺序排列，提示词和历史消息默认折叠，本轮输入默认展开。「请求参数」单独列出模型、采样、推理和工具等实际存在的字段。「完整 JSON」可查看整个请求体。关闭后可以继续修改草稿，再次打开会重新组装。
 
+在「消息」中展开带附件计数的分组，即可按发送顺序查看附件和聊天正文。图片直接显示请求中的图像，文本附件标出文件名和完整文字。每张附件卡都标有对应的 JSON 路径，例如 `messages[6].content[1]` 表示第 7 条消息的第 2 个内容块。并入正文的文本还标有从零开始的 UTF-16 区间 `[起点, 终点)`，可与「完整 JSON」对照。如果模型未接收图片，或扩展改写了文本而无法确认位置，可在「未在请求中定位的待发附件」展开输入框中的原文件。
+
 预览范围是单角色聊天补全中，浏览器准备提交给 SillyTavern 后端的 JSON。预览不会提交生成请求。模型服务端的转换、随机宏、仅在正式生成时运行的扩展和预设切换，可能使实际发送内容有所不同。群聊、文本补全、斜杠命令和需要上传转换的附件会给出提示。
 
 [桌面消息视图](docs/screenshots/request-preview-desktop.png) · [窄屏消息视图](docs/screenshots/request-preview-mobile.png) · [窄屏参数视图](docs/screenshots/request-preview-parameters.png)
+
+[桌面附件预览](docs/screenshots/request-preview-attachments.png) · [窄屏附件预览](docs/screenshots/request-preview-attachments-mobile.png)
 
 ## 可视化输入
 

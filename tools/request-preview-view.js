@@ -11,6 +11,61 @@ const categories = {
     current: ['本轮输入', 'COMPOSER'],
 };
 
+function attachmentView(type, name, position, value) {
+    const labels = { text: '文本', image: '图片', audio: '音频', video: '视频' };
+    const card = element('figure', 'stmt-rp-attachment');
+    const caption = element('figcaption');
+    caption.append(element('b', '', name || labels[type]), element('small', '', position));
+    card.append(caption);
+    if (type === 'text') {
+        card.append(element('pre', '', value || '（空文件）'));
+    } else if (typeof value === 'string') {
+        const media = element(type === 'image' ? 'img' : type);
+        if (type === 'image') {
+            media.alt = name || '请求中的图片';
+            media.loading = 'lazy';
+        } else {
+            media.controls = true;
+            media.preload = 'none';
+        }
+        const url = URL.parse(value, document.baseURI);
+        if (url && (value.startsWith('data:' + type + '/') || url.origin === location.origin)) {
+            media.src = value;
+            card.append(media);
+        } else if (url && ['https:', 'http:'].includes(url.protocol)) {
+            const load = element('button', '', '加载外部' + labels[type]);
+            load.type = 'button';
+            load.onclick = () => { media.src = url.href; load.replaceWith(media); };
+            card.append(load);
+        }
+        media.addEventListener('error', () => media.replaceWith(element('p', '', '浏览器无法显示此附件。')));
+    }
+    return card;
+}
+
+function appendMessageContent(row, message, index, attachments) {
+    const multipart = Array.isArray(message.content);
+    const parts = multipart ? message.content : [{ type: 'text', text: message.content }];
+    for (const [part, block] of parts.entries()) {
+        const path = `messages[${index}].content` + (multipart ? `[${part}]` : '');
+        const matches = attachments.filter(item => item.part === part);
+        const media = matches.find(item => item.type);
+        if (media) {
+            row.append(attachmentView(media.type, media.file?.title, path, media.url));
+        } else if (block?.type === 'text' && typeof block.text === 'string') {
+            let cursor = 0;
+            for (const { start, end, file } of matches) {
+                if (start > cursor) row.append(element('pre', '', block.text.slice(cursor, start)));
+                row.append(attachmentView('text', file.name, path + (multipart ? '.text' : '') + ` · [${start}, ${end})`, block.text.slice(start, end)));
+                cursor = end;
+            }
+            if (cursor < block.text.length) row.append(element('pre', '', block.text.slice(cursor)));
+        } else {
+            row.append(element('pre', '', JSON.stringify(multipart ? block : message.content, null, 2)));
+        }
+    }
+}
+
 function messageSection(kind, entries) {
     const section = element('details', 'stmt-rp-section');
     section.open = kind === 'current';
@@ -21,19 +76,20 @@ function messageSection(kind, entries) {
     const first = entries[0].message;
     const snippet = kind === 'current' ? '来自当前输入框' : typeof first.content === 'string' ? first.content.slice(0, 120) : first.role;
     const description = element('span', 'stmt-rp-description');
-    description.append(element('b', '', entries.length + ' 条'), element('span', '', snippet));
+    const count = entries.reduce((sum, entry) => sum + entry.attachments.length, 0);
+    description.append(element('b', '', entries.length + ' 条' + (count ? ' · ' + count + ' 个附件' : '')), element('span', '', snippet));
     summary.append(label, description);
     section.append(summary);
     function populate() {
         if (!section.open || section.children.length > 1) return;
         const list = element('div', 'stmt-rp-messages');
-        for (const { message, index } of entries) {
+        for (const { message, index, attachments } of entries) {
             const row = element('article');
             const meta = element('header');
             meta.append(element('small', '', '#' + String(index + 1).padStart(2, '0')), element('b', '', message.role));
             if (message.name) meta.append(element('span', '', message.name));
             row.append(meta);
-            row.append(element('pre', '', typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2)));
+            appendMessageContent(row, message, index, attachments);
             const { role, content, name, ...extra } = message;
             if (Object.keys(extra).length) row.append(element('pre', 'stmt-rp-extra', JSON.stringify(extra, null, 2)));
             list.append(row);
@@ -58,7 +114,7 @@ export function previewDialog() {
         main.replaceChildren(element('p', '', message));
         main.firstChild.setAttribute('role', 'status');
     }
-    function render({ body, currentIndex, hasDraft, historyIndices }) {
+    function render({ body, currentIndex, hasDraft, historyIndices, attachments = [], unlocated = [] }) {
         const { messages, ...params } = body;
         const messagePage = element('section');
         const paramsPage = element('section');
@@ -74,9 +130,20 @@ export function previewDialog() {
         messages.forEach((message, index) => {
             const kind = index === currentIndex ? 'current' : history.has(index) ? 'history' : 'prompt';
             if (groups.at(-1)?.kind !== kind) groups.push({ kind, entries: [] });
-            groups.at(-1).entries.push({ message, index });
+            groups.at(-1).entries.push({ message, index, attachments: attachments[index] ?? [] });
         });
         for (const { kind, entries } of groups) messagePage.append(messageSection(kind, entries));
+        if (unlocated.length) {
+            const missing = element('details', 'stmt-rp-unlocated');
+            missing.append(element('summary', '', '未在请求中定位的待发附件 · ' + unlocated.length));
+            missing.ontoggle = () => {
+                if (!missing.open || missing.children.length > 1) return;
+                for (const file of unlocated) {
+                    missing.append(attachmentView(file.type, file.name || file.title, '输入框中的原文件', file.text ?? file.url));
+                }
+            };
+            messagePage.append(missing);
+        }
         paramsPage.append(heading('请求参数', Object.keys(params).length + ' 项'));
         const fields = element('dl', 'stmt-rp-fields');
         const priority = ['model', 'temperature', 'reasoning_effort', 'top_p', 'max_tokens', 'max_completion_tokens', 'stream'];
