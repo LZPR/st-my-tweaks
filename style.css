@@ -1,4 +1,6 @@
 .st-my-tweaks-editor-shortcuts > button {
+    max-width: 100%;
+    overflow-wrap: anywhere;
     appearance: none;
     min-height: 36px;
     padding: 0.25em 0.7em;
@@ -16,9 +18,9 @@
 
 #send_form > .st-my-tweaks-chat-shortcuts {
     /* The composer row has order: 25 in SillyTavern. */
-    order: 24;
+    order: 26;
     box-sizing: border-box;
-    padding: 4px 6px 2px;
+    padding: 2px 6px 4px;
 }
 
 #send_form:not(:has(> #nonQRFormItems > #send_textarea:focus)) > .st-my-tweaks-chat-shortcuts {
@@ -30,6 +32,76 @@
     --interactable-outline-color-faint: var(--SmartThemeBorderColor);
     outline: none;
 }
+
+.st-shortcut-settings {
+    display: grid;
+    gap: 16px;
+    text-align: start;
+    --phrase-line: var(--SmartThemeBorderColor, #50535b);
+}
+
+.st-shortcut-locations, .st-shortcut-locations label, .st-phrases-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.st-shortcut-locations { gap: 8px 18px; }
+.st-shortcut-appearance, .st-phrase-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+}
+
+.st-shortcut-appearance label, .st-phrase-fields label {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.st-phrases { border-top: 1px solid var(--phrase-line); padding-top: 12px; }
+.st-phrases-heading { justify-content: space-between; }
+.st-phrases h4, .st-phrases h5 { margin: 0; }
+.st-phrases-lists { display: grid; gap: 12px; margin-top: 12px; }
+.st-phrase-group {
+    border: 1px solid var(--phrase-line);
+    border-radius: 9px;
+    padding: 8px 12px;
+}
+.st-phrase-group h5 { font-size: 0.86em; font-weight: 600; }
+.st-phrase-empty { display: block; opacity: 0.65; padding-top: 5px; }
+.st-phrase-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 4px 8px;
+    align-items: center;
+    border-top: 1px solid var(--phrase-line);
+    margin-top: 6px;
+    padding-top: 6px;
+}
+.st-phrase-action {
+    font: inherit;
+    font-size: 0.85em;
+    color: inherit;
+    background: transparent;
+    border: 1px solid var(--phrase-line);
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.st-phrase-action:hover { background: color-mix(in srgb, currentColor 9%, transparent); }
+.st-phrase-handle { cursor: grab; touch-action: none; border: 0; font-size: 1.25em; }
+.st-phrase-edit { display: grid; gap: 2px; text-align: start; min-width: 0; border: 0; }
+.st-phrase-edit > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-phrase-edit small, .st-phrase-row.muted .st-phrase-edit { opacity: 0.65; }
+.st-phrase-row.moving { opacity: 0.55; }
+.st-phrase-row.drop-before { border-top-color: currentColor; }
+.st-phrase-group.drop-end { border-bottom-color: currentColor; }
+.st-phrase-fields { grid-column: 1 / -1; margin-block: 6px; }
+.st-phrase-fields label:has(textarea) { grid-column: 1 / -1; }
+.st-phrase-fields textarea { field-sizing: content; min-height: 3.5em; resize: vertical; }
+.st-phrase-fields button { justify-self: start; }
 
 .st-my-tweaks-prompt-history {
     box-sizing: border-box;

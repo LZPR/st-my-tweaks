@@ -1,4 +1,5 @@
 import { createToolbarScaleSetting, getToolbarScale } from './toolbar-scale.js';
+import { addPhraseSettings } from './editor-phrases.js';
 
 const chatEditorSelector = 'textarea#send_textarea';
 const editorSelector = `textarea.maximized_textarea, ${chatEditorSelector}`;
@@ -73,7 +74,19 @@ function applyToolbarSettings(toolbar, config) {
 }
 
 function renderSettings(canvas, config) {
-    canvas.classList.add('flex-container', 'flexFlowColumn');
+    canvas.classList.add('st-shortcut-settings');
+    const locations = document.createElement('div');
+    locations.className = 'st-shortcut-locations';
+    locations.append('启用位置');
+    for (const [key, title] of [['chatEnabled', '输入框'], ['fullscreenEnabled', '全屏编辑框']]) {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = config[key] !== false;
+        checkbox.onchange = () => { config[key] = checkbox.checked; };
+        label.append(checkbox, title);
+        locations.append(label);
+    }
 
     const alignmentLabel = document.createElement('label');
     alignmentLabel.className = 'flex-container flexFlowColumn';
@@ -89,25 +102,36 @@ function renderSettings(canvas, config) {
     alignment.addEventListener('change', () => { config.alignment = alignment.value; });
     alignmentLabel.append('快捷栏对齐', alignment);
 
-    canvas.append(alignmentLabel, createToolbarScaleSetting(config, '按钮缩放'));
+    const appearance = document.createElement('div');
+    appearance.className = 'st-shortcut-appearance';
+    appearance.append(alignmentLabel, createToolbarScaleSetting(config, '按钮缩放'));
+    canvas.append(locations, appearance);
+    return addPhraseSettings(canvas, config);
 }
 
-function createToolbar(getEditor, config, label) {
+function createToolbar(getEditor, config, position) {
     const toolbar = document.createElement('div');
     toolbar.className = `flex-container wide100p ${toolbarClass}`;
     toolbar.style.flex = '0 0 auto';
     toolbar.style.flexWrap = 'wrap';
     toolbar.style.direction = 'ltr';
     toolbar.setAttribute('role', 'group');
-    toolbar.setAttribute('aria-label', label);
+    toolbar.setAttribute('aria-label', position === 'chat' ? '聊天快捷输入' : '全屏编辑快捷输入');
     // Keep the textarea focused and preserve its selection when tapping a shortcut.
     toolbar.addEventListener('pointerdown', event => event.preventDefault());
 
-    for (const shortcut of ['{{char}}', '{{user}}', '“”']) {
+    const shortcuts = [
+        { name: '{{char}}', text: '{{char}}' },
+        { name: '{{user}}', text: '{{user}}' },
+        { name: '“”', quotes: true },
+    ];
+    const phrases = (config.phrases ?? []).filter(p => !p.hidden);
+    shortcuts.push(...phrases.filter(p => p.position === 'both'), ...phrases.filter(p => p.position === position));
+    for (const shortcut of shortcuts) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = shortcut;
-        if (shortcut === '“”') {
+        button.textContent = shortcut.name;
+        if (shortcut.quotes) {
             button.setAttribute('aria-label', '插入或切换引号');
         }
         button.addEventListener('click', () => {
@@ -115,11 +139,11 @@ function createToolbar(getEditor, config, label) {
             if (!editor) {
                 return;
             }
-            if (shortcut === '“”') {
+            if (shortcut.quotes) {
                 toggleQuotes(editor);
             } else {
                 const { selectionStart: start, selectionEnd: end } = editor;
-                replaceRange(editor, start, end, shortcut, start + shortcut.length);
+                replaceRange(editor, start, end, shortcut.text, start + shortcut.text.length);
             }
         });
         toolbar.append(button);
@@ -137,20 +161,20 @@ function addToolbar(editor, config) {
     if (editor.matches(chatEditorSelector)) {
         const row = editor.closest('#send_form > #nonQRFormItems');
         const form = row?.parentElement;
-        if (!form || form.querySelector(`:scope > .${chatToolbarClass}`)) {
+        if (config.chatEnabled === false || !form || form.querySelector(`:scope > .${chatToolbarClass}`)) {
             return;
         }
 
         const getChatEditor = () => form.querySelector(`:scope > #nonQRFormItems > ${chatEditorSelector}`);
-        const toolbar = createToolbar(getChatEditor, config, '聊天快捷输入');
+        const toolbar = createToolbar(getChatEditor, config, 'chat');
         toolbar.classList.add(chatToolbarClass);
         // Tabbing away should leave the composer without focusing a control that then disappears.
         for (const button of toolbar.children) {
             button.tabIndex = -1;
         }
-        row.before(toolbar);
-    } else if (!editor.nextElementSibling?.classList.contains(toolbarClass)) {
-        editor.after(createToolbar(() => editor, config, '全屏编辑快捷输入'));
+        row.after(toolbar);
+    } else if (config.fullscreenEnabled !== false && !editor.nextElementSibling?.classList.contains(toolbarClass)) {
+        editor.after(createToolbar(() => editor, config, 'fullscreen'));
     }
 }
 
@@ -159,7 +183,8 @@ export const expandedEditorShortcuts = {
     label: '编辑快捷输入',
     renderSettings,
     onSettingsChanged(config) {
-        document.querySelectorAll(`.${toolbarClass}`).forEach(toolbar => applyToolbarSettings(toolbar, config));
+        document.querySelectorAll(`.${toolbarClass}`).forEach(toolbar => toolbar.remove());
+        document.querySelectorAll(editorSelector).forEach(editor => addToolbar(editor, config));
     },
     start(_context, getConfig) {
         const mountToolbar = editor => addToolbar(editor, getConfig());
