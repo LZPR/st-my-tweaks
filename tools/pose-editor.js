@@ -12,7 +12,6 @@ export function createPoseEditor() {
             <small>拖动圆点调整姿态。也可先选关节，再轻点画布定位，或按方向键微调。</small>
             <button type="button" class="stmt-pose-undo" disabled>撤销移动</button>
             <label>姿态注释<textarea rows="3" placeholder="例如：右手举到耳旁，手掌朝前。"></textarea></label>
-            <small>注释会随骨架图一起附加到当前消息。</small>
         </section></div>
         <div role="status" class="stmt-pose-status"></div>`;
     const canvas = panel.querySelector('canvas');

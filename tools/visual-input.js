@@ -1,7 +1,8 @@
 import { createPoseEditor } from './pose-editor.js';
-import { describePose, drawPose } from './pose.js';
+import { drawPose } from './pose.js';
+import { poseMode, poseModes, poseText } from './pose-export.js';
 
-async function poseFiles(points, note, includePoseData) {
+async function poseImage(points) {
     const canvas = document.createElement('canvas');
     canvas.width = 800;
     canvas.height = 880;
@@ -12,15 +13,26 @@ async function poseFiles(points, note, includePoseData) {
     drawPose(ctx, points);
     const image = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!image) throw new Error('骨架图生成失败，请重试。');
+    return image;
+}
+
+async function poseFiles(points, note, mode) {
     const name = '姿态-' + Date.now();
-    const files = [new File([image], name + '.png', { type: 'image/png' })];
-    if (includePoseData || note.trim()) {
-        const text = includePoseData
-            ? JSON.stringify(describePose(points, note, canvas.width, canvas.height), null, 2)
-            : note;
-        files.push(new File([text], name + '.txt', { type: 'text/plain' }));
-    }
+    const files = [];
+    if (mode.image) files.push(new File([await poseImage(points)], name + '.png', { type: 'image/png' }));
+    const text = poseText(points, note, mode);
+    if (text) files.push(new File([text], name + '.txt', { type: 'text/plain' }));
     return files;
+}
+
+function modeSelector(title, config) {
+    const label = document.createElement('label');
+    const select = document.createElement('select');
+    select.className = 'text_pole';
+    for (const mode of poseModes) select.add(new Option(mode.label, mode.id));
+    select.value = poseMode(config).id;
+    label.append(title, select);
+    return { label, select };
 }
 
 let syncEntry;
@@ -45,6 +57,8 @@ function start(context, getConfig) {
     entry.onclick = () => {
         if (active) return;
         const { panel, points, note } = createPoseEditor();
+        const mode = modeSelector('本次发送档位', getConfig());
+        panel.querySelector('.stmt-pose-controls').append(mode.label);
         const dialog = document.createElement('dialog');
         dialog.className = 'stmt-pose-dialog';
         dialog.setAttribute('aria-label', '姿态编辑');
@@ -56,7 +70,7 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await poseFiles(structuredClone(points), note.value, getConfig().includePoseData !== false);
+                const files = await poseFiles(structuredClone(points), note.value, poseMode({ poseMode: mode.select.value }));
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
@@ -90,25 +104,21 @@ function start(context, getConfig) {
 }
 
 function renderSettings(canvas, draft) {
-    for (const [key, title] of [
-        ['showPoseEntry', '在输入框扩展菜单中显示「姿态编辑」'],
-        ['includePoseData', '附加姿态数据文本（关节坐标与几何量）'],
-    ]) {
-        const label = document.createElement('label');
-        label.className = 'checkbox_label';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = draft[key] !== false;
-        checkbox.onchange = () => { draft[key] = checkbox.checked; };
-        label.append(checkbox, title);
-        canvas.append(label);
-    }
+    const label = document.createElement('label');
+    label.className = 'checkbox_label';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = draft.showPoseEntry !== false;
+    checkbox.onchange = () => { draft.showPoseEntry = checkbox.checked; };
+    label.append(checkbox, '在输入框扩展菜单中显示「姿态编辑」');
+    const mode = modeSelector('默认发送档位', draft);
+    mode.select.onchange = () => { draft.poseMode = mode.select.value; };
     const hint = document.createElement('small');
-    hint.textContent = '关闭后只附骨架图；填写了注释时，另附注释原文。';
+    hint.textContent = '摘要包含双腕位置与膝角；完整数据另含 18 个关节坐标。所有档位均保留手写注释。';
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = '正在检查当前连接的图片内联状态…';
-    canvas.append(hint, status);
+    canvas.append(label, mode.label, hint, status);
     showInlineStatus(status);
 }
 
