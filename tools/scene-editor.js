@@ -140,8 +140,8 @@ export function createSceneEditor() {
     };
     chooseTool('free');
     refresh();
-    return { panel, getFiles() {
+    return { panel, getFiles(stem) {
         if (!blocks.length) throw new Error('请先在画板上画一个色块。');
-        return boardFiles(structuredClone(blocks));
+        return boardFiles(structuredClone(blocks), stem);
     } };
 }

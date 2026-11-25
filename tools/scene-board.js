@@ -29,7 +29,7 @@ export function drawBoard(canvas, blocks, selected = -1) {
     });
 }
 
-export async function boardFiles(blocks) {
+export async function boardFiles(blocks, stem) {
     const canvas = document.createElement('canvas');
     canvas.width = boardWidth;
     canvas.height = boardHeight;
@@ -46,7 +46,7 @@ export async function boardFiles(blocks) {
                 + (note.trim() ? '\n   注释：' + note : '');
         }),
     ].join('\n');
-    const stem = '场景-' + Date.now();
+
     return [new File([png], stem + '.png', { type: 'image/png' }),
         new File([text], stem + '.txt', { type: 'text/plain' })];
 }

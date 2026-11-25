@@ -2,7 +2,7 @@ import { createPoseEditor } from './pose-editor.js';
 import { createSceneEditor } from './scene-editor.js';
 import { renderSceneImage } from './pose-scene.js';
 import { poseMode, poseModes, sceneText } from './pose-export.js';
-import { poseFileStem } from './pose-context.js';
+import { visualFileStem } from './pose-context.js';
 
 async function poseImage(people) {
     const canvas = document.createElement('canvas');
@@ -12,8 +12,8 @@ async function poseImage(people) {
     return image;
 }
 
-async function poseFiles(people, note, mode, currentOnly) {
-    const name = poseFileStem(currentOnly);
+async function poseFiles(people, note, mode, name) {
+
     const files = [];
     if (mode.image) files.push(new File([await poseImage(people)], name + '.png', { type: 'image/png' }));
     const text = sceneText(people, note, mode);
@@ -58,10 +58,10 @@ function start(context, getConfig) {
         active.remove();
         active = undefined;
     }
-    function open(title, { panel, fullscreen, closePanels, dispose, historyShortcut, getFiles }) {
+    function open(kind, { panel, fullscreen, closePanels, dispose, historyShortcut, getFiles }) {
         const dialog = document.createElement('dialog');
         dialog.className = 'stmt-pose-dialog';
-        dialog.setAttribute('aria-label', title);
+        dialog.setAttribute('aria-label', kind + '编辑');
         if (historyShortcut) dialog.addEventListener('keydown', historyShortcut);
         if (dispose) dialog.addEventListener('close', dispose, { once: true });
         const footer = document.createElement('footer');
@@ -77,7 +77,7 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await getFiles();
+                const files = await getFiles(visualFileStem(kind, getConfig().currentRequestOnly === true));
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
@@ -105,13 +105,13 @@ function start(context, getConfig) {
         if (active) return;
         const editor = createPoseEditor(poseMode(getConfig()).id,
             template => SillyTavern.getContext().substituteParams(template));
-        open('姿态编辑', { ...editor, getFiles() {
+        open('姿态', { ...editor, getFiles(stem) {
             const draft = editor.getDraft();
-            return poseFiles(draft.people, draft.note, poseMode({ poseMode: draft.mode }), getConfig().currentRequestOnly === true);
+            return poseFiles(draft.people, draft.note, poseMode({ poseMode: draft.mode }), stem);
         } });
     };
     sceneEntry.onclick = () => {
-        if (!active) open('场景编辑', createSceneEditor());
+        if (!active) open('场景', createSceneEditor());
     };
     context.eventSource.on(context.eventTypes.CHAT_CHANGED, close);
     return () => {
@@ -146,9 +146,9 @@ function renderSettings(canvas, draft) {
     once.type = 'checkbox';
     once.checked = draft.currentRequestOnly === true;
     once.onchange = () => { draft.currentRequestOnly = once.checked; };
-    lifetime.append(once, '姿态仅发送给当前请求');
+    lifetime.append(once, '可视化输入附件仅发送给当前请求');
     const lifetimeHint = document.createElement('small');
-    lifetimeHint.textContent = '勾选后，新附加的姿态图、数据和注释仍可在聊天中查看。后续请求（包括重新生成）会跳过它们。';
+    lifetimeHint.textContent = '勾选后，姿态编辑和场景编辑新附加的图片、数据和注释仍可在聊天中查看。后续请求（包括重新生成）会跳过它们。';
     hint.textContent = '摘要包含双腕位置与膝角；完整数据另含 18 个关节坐标。所有档位均保留手写注释。';
     const estimate = document.createElement('p');
     estimate.setAttribute('aria-live', 'polite');

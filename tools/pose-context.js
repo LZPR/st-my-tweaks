@@ -1,12 +1,12 @@
 // ST keeps attachment metadata in chat history. A filename marker survives the
 // initial save, which happens before MESSAGE_SENT. Mark the uploaded record too
 // so later edits to its display title do not change its lifetime.
-const singleUseName = /^姿态-仅本次-[0-9a-f]{32}\.(?:png|txt)$/i;
+const singleUseName = /^(?:姿态|场景)-仅本次-[0-9a-f]{32}\.(?:png|txt)$/i;
 
-export function poseFileStem(currentOnly) {
-    if (!currentOnly) return '姿态-' + Date.now();
+export function visualFileStem(kind, currentOnly) {
+    if (!currentOnly) return kind + '-' + Date.now();
     const bytes = crypto.getRandomValues(new Uint8Array(16));
-    return '姿态-仅本次-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    return kind + '-仅本次-' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
 function temporary(item) {
@@ -82,7 +82,7 @@ export function initPoseContext(context) {
                 message.extra.fileLength = replacement.length;
             }
         } catch {
-            toastr.error('未能从历史消息中分离仅本次使用的姿态附件，本次生成已停止。');
+            toastr.error('未能从历史消息中分离仅本次使用的可视化输入附件，本次生成已停止。');
             abort(true);
         }
     };
