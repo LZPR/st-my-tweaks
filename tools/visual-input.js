@@ -112,13 +112,33 @@ function renderSettings(canvas, draft) {
     checkbox.onchange = () => { draft.showPoseEntry = checkbox.checked; };
     label.append(checkbox, '在输入框扩展菜单中显示「姿态编辑」');
     const mode = modeSelector('默认发送档位', draft);
-    mode.select.onchange = () => { draft.poseMode = mode.select.value; };
     const hint = document.createElement('small');
     hint.textContent = '摘要包含双腕位置与膝角；完整数据另含 18 个关节坐标。所有档位均保留手写注释。';
+    const estimate = document.createElement('p');
+    estimate.setAttribute('aria-live', 'polite');
+    // Snapshot of the paired benchmark in docs/pose-tiers.md, not a live quote.
+    const benchmark = {
+        summary: ['8/72', '0.79', '36/72', '0.03'],
+        text: ['72/72', '0.49', '53/72', '0.07'],
+        image: ['0/72', '0.88', '31/72', '0.06'],
+        mixed: ['10/72', '0.85', '44/72', '0.07'],
+        full: ['66/72', '0.57', '60/72', '0.10'],
+    };
+    function showEstimate() {
+        const [thinkingScore, thinkingCost, fastScore, fastCost] = benchmark[mode.select.value];
+        estimate.textContent = 'DeepSeek Flash 样本（每百次，空闲时段估价）：思考 '
+            + thinkingScore + ' 题正确，约 ¥' + thinkingCost + '；非思考 '
+            + fastScore + ' 题正确，约 ¥' + fastCost + '。输出上限 2048 token。';
+    }
+    mode.select.onchange = () => {
+        draft.poseMode = mode.select.value;
+        showEstimate();
+    };
+    showEstimate();
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = '正在检查当前连接的图片内联状态…';
-    canvas.append(label, mode.label, hint, status);
+    canvas.append(label, mode.label, hint, estimate, status);
     showInlineStatus(status);
 }
 
