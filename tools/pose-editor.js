@@ -4,7 +4,7 @@ import { boardCamera, boardHits, scalePerson } from './pose-board.js';
 import { poseModes } from './pose-export.js';
 import { poseTree } from './pose-tree.js';
 
-export function createPoseEditor(defaultMode, resolveName) {
+export function createPoseEditor(defaultMode, resolveName, saved) {
     const panel = document.createElement('div');
     panel.className = 'stmt-pose';
     panel.innerHTML = `<header><h2>姿态编辑</h2><div class="stmt-pose-actions">
@@ -21,7 +21,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         <div class="stmt-board-menu" hidden><label class="stmt-board-scope">可选择的人物<select aria-label="可选择的人物"></select></label><button data-command="whole">选择整个人物</button>
         <button data-command="add">添加人物</button><button data-command="person">人物设置</button>
         <button data-command="note">场景注释</button><button data-command="mode">发送档位</button>
-        <button data-command="attach">附加到消息</button></div></section>
+        <button data-command="new">新建画布</button><button data-command="attach">附加到消息</button></div></section>
         <aside class="stmt-pose-sidebar"><nav aria-label="姿态场景"><h3>场景</h3><div role="tree" aria-label="场景树" aria-multiselectable="true"></div></nav>
         <section class="stmt-pose-inspector"><button type="button" data-action="dismiss" aria-label="关闭画板面板">×</button><h3></h3>
         <div data-page="people"><button type="button" data-action="add">添加人物</button></div>
@@ -71,10 +71,15 @@ export function createPoseEditor(defaultMode, resolveName) {
     more.setAttribute('aria-expanded', 'false');
     toolbar.append(more);
     let drag, typing;
-    const past = [], future = [];
+    const past = saved?.past ?? [], future = saved?.future ?? [];
+    if (saved) {
+        ({ state, activeId, selected, node, nextNumber, group, scopeId } = saved);
+        Object.assign(camera.view, saved.view);
+        for (const p of state.people) p.name = resolveName(p.template) || p.id;
+    }
     const person = () => state.people.find(p => p.id === activeId);
     const snapshot = () => structuredClone({ state, activeId, selected, node, nextNumber, group });
-    const renderTree = poseTree(find('[role="tree"]'), choose);
+    let renderTree = poseTree(find('[role="tree"]'), choose);
     function buttons() {
         action('undo').disabled = !past.length;
         action('redo').disabled = !future.length;
@@ -296,6 +301,21 @@ export function createPoseEditor(defaultMode, resolveName) {
         const cmd = event.target.closest('[data-command]')?.dataset.command;
         if (!cmd) return;
         closePanels();
+        if (cmd === 'new') {
+            if (!window.confirm('新建画布会清空当前姿态、注释和撤销记录。继续吗？')) return;
+            cancelDrag();
+            past.length = future.length = 0;
+            nextNumber = 1;
+            state = { people: [makePerson(0)], note: '', mode: defaultMode };
+            activeId = 'P1'; selected = 4; node = 'P1/4';
+            group = null; scopeId = ''; typing = undefined;
+            camera.reset();
+            renderTree = poseTree(find('[role="tree"]'), choose);
+            find('.stmt-pose-status').textContent = '';
+            setTool('select');
+            refresh(true);
+            return;
+        }
         if (cmd === 'attach') { panel.closest('dialog').querySelector('.stmt-pose-attach').click(); return; }
         if (cmd === 'add') action('add').click();
         else choose(['whole', 'person'].includes(cmd) ? activeId : cmd);
@@ -454,8 +474,13 @@ export function createPoseEditor(defaultMode, resolveName) {
     const observer = new ResizeObserver(paint);
     observer.observe(canvas);
     refresh(true);
-    setTool('select');
-    return { panel, fullscreen, closePanels, dispose: () => observer.disconnect(), historyShortcut, getDraft() {
+    setTool(saved?.tool ?? 'select');
+    return { panel, fullscreen, closePanels, historyShortcut, suspend() {
+        cancelDrag();
+        if (typing === name) resolvePerson();
+        observer.disconnect();
+        return { state, activeId, selected, node, nextNumber, group, scopeId, past, future, tool, view: camera.view };
+    }, getDraft() {
         if (typing === name) resolvePerson();
         return structuredClone(state);
     } };

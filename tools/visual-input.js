@@ -52,8 +52,12 @@ function start(context, getConfig) {
     };
     syncEntry(getConfig());
     let active;
+    const boards = new Map();
+    let onClose;
     function close() {
         if (!active) return;
+        onClose?.();
+        onClose = undefined;
         active.close();
         active.remove();
         active = undefined;
@@ -103,8 +107,11 @@ function start(context, getConfig) {
     }
     entry.onclick = () => {
         if (active) return;
+        const ctx = SillyTavern.getContext();
+        const key = JSON.stringify([ctx.groupId, ctx.characters?.[ctx.characterId]?.avatar, ctx.getCurrentChatId()]);
         const editor = createPoseEditor(poseMode(getConfig()).id,
-            template => SillyTavern.getContext().substituteParams(template));
+            template => ctx.substituteParams(template), boards.get(key));
+        onClose = () => boards.set(key, editor.suspend());
         open('姿态', { ...editor, getFiles(stem) {
             const draft = editor.getDraft();
             return poseFiles(draft.people, draft.note, poseMode({ poseMode: draft.mode }), stem);
