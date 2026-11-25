@@ -67,7 +67,7 @@ export function createPoseEditor(defaultMode, resolveName, saved, library) {
     }
     const presetButton = document.createElement('button');
     presetButton.type = 'button';
-    presetButton.textContent = '预设';
+    presetButton.innerHTML = '<i class="fa-solid fa-layer-group" aria-hidden="true"></i> 预设';
     presetButton.setAttribute('aria-expanded', 'false');
     toolbar.append(presetButton);
     const more = document.createElement('button');
@@ -487,7 +487,7 @@ export function createPoseEditor(defaultMode, resolveName, saved, library) {
         if (drag?.id === event.pointerId) cancelDrag();
     };
     panel.addEventListener('pointerdown', event => {
-        if (!presets.box.hidden && !presets.box.contains(event.target) && event.target !== presetButton) closePanels();
+        if (!presets.box.hidden && !presets.box.contains(event.target) && !presetButton.contains(event.target)) closePanels();
         if (drag && event.target !== canvas) cancelDrag();
     }, true);
     canvas.onkeydown = event => {
