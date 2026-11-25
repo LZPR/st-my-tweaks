@@ -4,6 +4,7 @@
     "requires": [],
     "optional": [],
     "js": "index.js",
+    "generate_interceptor": "stMyTweaksPoseContext",
     "css": "style.css",
     "version": "0.1.0"
 }

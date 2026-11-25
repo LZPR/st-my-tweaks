@@ -1,6 +1,7 @@
 import { createPoseEditor } from './pose-editor.js';
 import { drawPose } from './pose.js';
 import { poseMode, poseModes, poseText } from './pose-export.js';
+import { poseFileStem } from './pose-context.js';
 
 async function poseImage(points) {
     const canvas = document.createElement('canvas');
@@ -16,8 +17,8 @@ async function poseImage(points) {
     return image;
 }
 
-async function poseFiles(points, note, mode) {
-    const name = '姿态-' + Date.now();
+async function poseFiles(points, note, mode, currentOnly) {
+    const name = poseFileStem(currentOnly);
     const files = [];
     if (mode.image) files.push(new File([await poseImage(points)], name + '.png', { type: 'image/png' }));
     const text = poseText(points, note, mode);
@@ -70,7 +71,8 @@ function start(context, getConfig) {
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await poseFiles(structuredClone(points), note.value, poseMode({ poseMode: mode.select.value }));
+                const files = await poseFiles(structuredClone(points), note.value,
+                    poseMode({ poseMode: mode.select.value }), getConfig().currentRequestOnly === true);
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
@@ -113,6 +115,15 @@ function renderSettings(canvas, draft) {
     label.append(checkbox, '在输入框扩展菜单中显示「姿态编辑」');
     const mode = modeSelector('默认发送档位', draft);
     const hint = document.createElement('small');
+    const lifetime = document.createElement('label');
+    lifetime.className = 'checkbox_label';
+    const once = document.createElement('input');
+    once.type = 'checkbox';
+    once.checked = draft.currentRequestOnly === true;
+    once.onchange = () => { draft.currentRequestOnly = once.checked; };
+    lifetime.append(once, '姿态仅发送给当前请求');
+    const lifetimeHint = document.createElement('small');
+    lifetimeHint.textContent = '勾选后，新附加的姿态图、数据和注释仍可在聊天中查看。后续请求（包括重新生成）会跳过它们。';
     hint.textContent = '摘要包含双腕位置与膝角；完整数据另含 18 个关节坐标。所有档位均保留手写注释。';
     const estimate = document.createElement('p');
     estimate.setAttribute('aria-live', 'polite');
@@ -138,7 +149,7 @@ function renderSettings(canvas, draft) {
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = '正在检查当前连接的图片内联状态…';
-    canvas.append(label, mode.label, hint, estimate, status);
+    canvas.append(label, mode.label, hint, estimate, status, lifetime, lifetimeHint);
     showInlineStatus(status);
 }
 

@@ -1,3 +1,4 @@
+import { omitPastPose } from './pose-context.js';
 import { getBiasStrings, getMaxPromptTokens, isGenerating, parseMesExamples, removeMacros, baseChatReplace, extension_prompt_types, getExtensionPromptRoleByName } from '../../../../../script.js';
 import { createGenerationParameters, getChatCompletionModel, prepareOpenAIMessages, setOpenAIMessageExamples, setOpenAIMessages, promptManager } from '../../../../openai.js';
 import { getFileAttachment } from '../../../../chats.js';
@@ -151,6 +152,7 @@ export async function buildRequestPreview(context, signal) {
     const canUseTools = ToolManager.isToolCallingSupported();
     const chat = context.chat.filter(m => !m.is_system || (canUseTools && Array.isArray(m.extra?.tool_invocations))).map(m => {
         const clone = structuredClone(m);
+        omitPastPose(clone);
         if (m.extra?.[IGNORE_SYMBOL]) clone.extra[IGNORE_SYMBOL] = true;
         return clone;
     });

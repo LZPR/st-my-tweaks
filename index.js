@@ -1,4 +1,5 @@
 import { tools } from './tools/index.js';
+import { initPoseContext } from './tools/pose-context.js';
 
 const settingsKey = 'st-my-tweaks';
 
@@ -109,6 +110,7 @@ function init() {
     }
 
     const context = SillyTavern.getContext();
+    initPoseContext(context);
     const settings = context.extensionSettings[settingsKey] ??= {};
     settings.enabled ??= {};
     settings.config ??= {};
