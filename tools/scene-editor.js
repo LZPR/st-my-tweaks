@@ -19,10 +19,10 @@ function toolButton(id, label, attr) {
     return `<button type="button" ${attr}="${id}" aria-label="${label}" title="${label}">${icon(id)}</button>`;
 }
 
-export function createSceneEditor() {
+export function createSceneEditor(saved) {
     const panel = document.createElement('section');
     panel.className = 'stmt-pose stmt-scene';
-    panel.innerHTML = `<header><h2>场景编辑</h2><small>800 × 560</small></header>
+    panel.innerHTML = `<header><h2>场景编辑</h2><button type="button" data-new>新建画布</button></header>
         <div class="stmt-scene-layout"><section class="stmt-scene-stage">
         <div class="stmt-scene-tools" role="group" aria-label="画板工具">
             ${[['free','轮廓'], ['rect','矩形'], ['move','选择 / 移动'], ['view','查看']].map(([id,label]) => toolButton(id,label,'data-tool')).join('')}
@@ -41,10 +41,10 @@ export function createSceneEditor() {
     const canvas = find('canvas');
     canvas.width = boardWidth;
     canvas.height = boardHeight;
-    let blocks = [];
-    let selected = -1, nextNumber = 1, tool, ink, gesture;
+    let blocks = saved?.blocks ?? [];
+    let selected = saved?.selected ?? -1, nextNumber = saved?.nextNumber ?? 1, tool, ink, gesture;
     const list = find('ul'), name = find('[data-name]'), color = find('[data-color]'), note = find('textarea');
-    const past = [], future = [];
+    const past = saved?.past ?? [], future = saved?.future ?? [];
     let editing;
     // Point arrays are replaced on move; snapshots can share their geometry.
     const snapshot = () => ({ blocks: blocks.map(b => ({ ...b })), selected, nextNumber });
@@ -132,7 +132,7 @@ export function createSceneEditor() {
             for (const item of swatch.parentElement.children) item.setAttribute('aria-pressed', String(item === swatch));
         };
         find('.stmt-scene-palette').append(swatch);
-        if (!index) swatch.click();
+        if (hex === (saved?.ink ?? palette[0])) swatch.click();
     }
     for (const [field, key] of [[name, 'name'], [color, 'color'], [note, 'note']]) {
         field.oninput = () => {
@@ -225,9 +225,29 @@ export function createSceneEditor() {
         gesture = null;
         refresh();
     };
-    chooseTool('free');
+    function cancelGesture() {
+        if (gesture?.original) blocks[selected].points = gesture.original;
+        gesture = null;
+    }
+    find('[data-new]').onclick = () => {
+        cancelGesture();
+        blocks = [];
+        selected = -1;
+        nextNumber = 1;
+        past.length = future.length = 0;
+        editing = null;
+        find('[role=status]').textContent = '';
+        find('[data-reset]').click();
+        find('.stmt-scene-palette button').click();
+        chooseTool('free');
+        refresh();
+    };
+    chooseTool(saved?.tool ?? 'free');
     refresh();
-    return { panel, historyShortcut, getFiles(stem) {
+    return { panel, historyShortcut, suspend() {
+        cancelGesture();
+        return { ...snapshot(), past, future, tool, ink };
+    }, getFiles(stem) {
         if (!blocks.length) throw new Error('请先在画板上画一个色块。');
         return boardFiles(structuredClone(blocks), stem);
     } };

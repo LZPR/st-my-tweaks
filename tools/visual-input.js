@@ -55,6 +55,10 @@ function start(context, getConfig, updateConfig) {
     syncEntry(getConfig());
     let active;
     const boards = new Map();
+    const scenes = new Map();
+    function chatKey(ctx) {
+        return JSON.stringify([ctx.groupId, ctx.characters?.[ctx.characterId]?.avatar, ctx.getCurrentChatId()]);
+    }
     let onClose;
     function close() {
         if (!active) return;
@@ -73,7 +77,7 @@ function start(context, getConfig, updateConfig) {
         const footer = document.createElement('footer');
         footer.innerHTML = '<button type="button">取消</button><button type="button" class="stmt-pose-attach">附加到消息</button>';
         const [cancel, attach] = footer.children;
-        if (kind === '姿态') cancel.textContent = '关闭';
+        cancel.textContent = '关闭';
         cancel.onclick = close;
         dialog.oncancel = event => {
             event.preventDefault();
@@ -111,7 +115,7 @@ function start(context, getConfig, updateConfig) {
     entry.onclick = () => {
         if (active) return;
         const ctx = SillyTavern.getContext();
-        const key = JSON.stringify([ctx.groupId, ctx.characters?.[ctx.characterId]?.avatar, ctx.getCurrentChatId()]);
+        const key = chatKey(ctx);
         const editor = createPoseEditor(poseMode(getConfig()).id,
             template => ctx.substituteParams(template), boards.get(key), {
                 getLibrary: () => presets(getConfig()), saveLibrary: posePresets => updateConfig({ posePresets }),
@@ -123,7 +127,11 @@ function start(context, getConfig, updateConfig) {
         } });
     };
     sceneEntry.onclick = () => {
-        if (!active) open('场景', createSceneEditor());
+        if (active) return;
+        const key = chatKey(SillyTavern.getContext());
+        const editor = createSceneEditor(scenes.get(key));
+        onClose = () => scenes.set(key, editor.suspend());
+        open('场景', editor);
     };
     context.eventSource.on(context.eventTypes.CHAT_CHANGED, close);
     return () => {
