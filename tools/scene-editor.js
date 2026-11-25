@@ -1,11 +1,15 @@
 import { boardWidth, boardHeight, blockPath, drawBoard, boardFiles } from './scene-board.js';
 import { sceneView } from './scene-view.js';
+import { shapePoints, penPoints, hasArea } from './scene-shapes.js';
 
 const palette = ['#88cbd3', '#819c72', '#d1ae79', '#b87262', '#657783', '#afa0be'];
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(n, hi));
 const paths = {
     free: 'M3 17c4-9 6 6 10-3 M9 13l2-5 7-6 3 3-7 7z',
     rect: 'M4 5h16v14H4z', move: 'M5 3l15 9-7 2-3 7z',
+    circle: 'M21 12a9 9 0 1 1-18 0 9 9 0 1 1 18 0z',
+    ellipse: 'M22 12a10 6 0 1 1-20 0 10 6 0 1 1 20 0z',
+    triangle: 'M12 3 22 20H2z', pen: 'm4 20 3-11 9-6 5 5-6 9z M4 20l7-7 M14 5l5 5',
     view: 'M8 12V6a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 5-3 8-7 8-3 0-5-2-7-5l-3-4c-1-2 1-3 3-2l2 2z',
     undo: 'M9 4 4 9l5 5 M5 9h9a6 6 0 0 1 0 12',
     redo: 'm15 4 5 5-5 5 M19 9h-9a6 6 0 0 0 0 12',
@@ -25,10 +29,11 @@ export function createSceneEditor(saved) {
     panel.innerHTML = `<header><h2>场景编辑</h2><button type="button" data-new>新建画布</button></header>
         <div class="stmt-scene-layout"><section class="stmt-scene-stage">
         <div class="stmt-scene-tools" role="group" aria-label="画板工具">
-            ${[['free','轮廓'], ['rect','矩形'], ['move','选择 / 移动'], ['view','查看']].map(([id,label]) => toolButton(id,label,'data-tool')).join('')}
+            ${[['free','轮廓'], ['pen','钢笔'], ['rect','矩形'], ['circle','圆形'], ['ellipse','椭圆'], ['triangle','三角形'], ['move','选择 / 移动'], ['view','查看']].map(([id,label]) => toolButton(id,label,'data-tool')).join('')}
             ${toolButton('undo','撤销 (Ctrl+Z)','data-action')}${toolButton('redo','还原 (Ctrl+Shift+Z)','data-action')}
         </div><div class="stmt-scene-paper"><canvas tabindex="0" aria-label="场景画板"></canvas></div>
         <div class="stmt-scene-bottom"><div class="stmt-scene-palette" role="group" aria-label="画笔颜色"></div>
+        <button type="button" data-finish hidden>闭合路径</button>
         <div class="stmt-scene-zoom" hidden><button type="button" data-out aria-label="缩小">−</button><button type="button" data-reset title="复位视图" aria-label="复位视图">100%</button><button type="button" data-in aria-label="放大">+</button></div></div>
         <small data-hint></small></section>
         <aside><section><h3>场景物体</h3><ul aria-label="场景物体"></ul></section>
@@ -42,12 +47,13 @@ export function createSceneEditor(saved) {
     canvas.width = boardWidth;
     canvas.height = boardHeight;
     let blocks = saved?.blocks ?? [];
+    let anchors = saved?.anchors ?? [];
     let selected = saved?.selected ?? -1, nextNumber = saved?.nextNumber ?? 1, tool, ink, gesture;
     const list = find('ul'), name = find('[data-name]'), color = find('[data-color]'), note = find('textarea');
     const past = saved?.past ?? [], future = saved?.future ?? [];
     let editing;
     // Point arrays are replaced on move; snapshots can share their geometry.
-    const snapshot = () => ({ blocks: blocks.map(b => ({ ...b })), selected, nextNumber });
+    const snapshot = () => ({ blocks: blocks.map(b => ({ ...b })), selected, nextNumber, anchors });
     function buttons() {
         find('[data-action=undo]').disabled = !past.length;
         find('[data-action=redo]').disabled = !future.length;
@@ -62,7 +68,8 @@ export function createSceneEditor(saved) {
         if (!from.length || gesture) return;
         editing = null;
         to.push(snapshot());
-        ({ blocks, selected, nextNumber } = from.pop());
+        ({ blocks, selected, nextNumber, anchors } = from.pop());
+        if (anchors.length) chooseTool('pen');
         refresh();
     }
     find('[data-action=undo]').onclick = () => restore(past, future);
@@ -104,22 +111,51 @@ export function createSceneEditor(saved) {
         name.value = block?.name ?? '';
         color.value = block?.color ?? ink;
         note.value = block?.note ?? '';
+        drawPreview();
+    }
+    function drawPreview(pending = anchors) {
         drawBoard(canvas, blocks, selected);
+        find('[data-finish]').disabled = anchors.length < 3;
+        if (tool !== 'pen' || !pending.length) return;
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = ink;
+        ctx.beginPath();
+        for (const [x, y] of penPoints(pending, false)) ctx.lineTo(x, y);
+        ctx.stroke();
+        for (const { at: [x, y], dx, dy } of pending) {
+            ctx.strokeStyle = '#353b40';
+            ctx.beginPath();
+            ctx.moveTo(x - dx, y - dy);
+            ctx.lineTo(x + dx, y + dy);
+            ctx.stroke();
+            ctx.fillStyle = ink;
+            ctx.fillRect(x - 4, y - 4, 8, 8);
+            ctx.strokeRect(x - 4, y - 4, 8, 8);
+        }
+        ctx.restore();
     }
     function chooseTool(value) {
         tool = value;
         find('.stmt-scene-stage').dataset.mode = value;
         find('.stmt-scene-zoom').hidden = value !== 'view';
         find('.stmt-scene-palette').hidden = value === 'view';
+        find('[data-finish]').hidden = value !== 'pen';
         for (const button of panel.querySelectorAll('[data-tool]')) {
             button.setAttribute('aria-pressed', String(button.dataset.tool === tool));
         }
         find('[data-hint]').textContent = {
             free: '沿物体边缘拖画，松开即可闭合色块。',
             rect: '从一个角拖到对角，松开即可添加矩形。',
+            circle: '沿对角线拖动，松开即可添加正圆。',
+            ellipse: '拖出外接矩形，松开即可添加椭圆。',
+            triangle: '拖出宽度与高度，松开即可添加三角形。',
+            pen: '点击添加角点，按住拖动拉出曲线。点起点或「闭合路径」完成。',
             move: '点选物体后拖动。被遮住的物体可从列表选择。',
             view: '拖动平移，滚轮或双指缩放。点百分比复位。',
         }[tool];
+        drawPreview();
     }
     for (const button of panel.querySelectorAll('[data-tool]')) button.onclick = () => chooseTool(button.dataset.tool);
     for (const [index, hex] of palette.entries()) {
@@ -130,6 +166,7 @@ export function createSceneEditor(saved) {
         swatch.onclick = () => {
             ink = hex;
             for (const item of swatch.parentElement.children) item.setAttribute('aria-pressed', String(item === swatch));
+            drawPreview();
         };
         find('.stmt-scene-palette').append(swatch);
         if (hex === (saved?.ink ?? palette[0])) swatch.click();
@@ -144,7 +181,7 @@ export function createSceneEditor(saved) {
             if (field === name) row.querySelector('span').textContent = name.value;
             if (field === color) {
                 row.style.setProperty('--ink', color.value);
-                drawBoard(canvas, blocks, selected);
+                drawPreview();
             }
         };
         field.onchange = () => {
@@ -161,7 +198,7 @@ export function createSceneEditor(saved) {
         };
         field.onblur = () => { editing = null; };
     }
-    sceneView(find('.stmt-scene-paper'), canvas, find('.stmt-scene-zoom'), () => tool === 'view');
+    const getView = sceneView(find('.stmt-scene-paper'), canvas, find('.stmt-scene-zoom'), () => tool === 'view', saved?.view);
     function point(event) {
         const r = canvas.getBoundingClientRect();
         return [clamp(Math.round((event.clientX - r.left) * boardWidth / r.width), 0, boardWidth),
@@ -170,6 +207,11 @@ export function createSceneEditor(saved) {
     canvas.onpointerdown = event => {
         if (tool === 'view' || gesture || event.button !== 0) return;
         const start = point(event);
+        if (tool === 'pen' && anchors.length >= 3) {
+            const [x, y] = anchors[0].at;
+            const radius = 10 * boardWidth / canvas.getBoundingClientRect().width;
+            if (Math.hypot(x - start[0], y - start[1]) <= radius) { finishPen(); return; }
+        }
         gesture = { id: event.pointerId, start, tool, points: [start], color: ink };
         if (tool === 'move') {
             const ctx = canvas.getContext('2d');
@@ -192,30 +234,48 @@ export function createSceneEditor(saved) {
             }
             blocks[selected].points = g.original.map(([px, py]) => [px + dx, py + dy]);
             drawBoard(canvas, blocks, selected);
+        } else if (g.tool === 'pen') {
+            g.anchor = { at: g.start, dx: x - sx, dy: y - sy };
+            drawPreview([...anchors, g.anchor]);
         } else {
-            if (g.tool === 'rect') g.points = [g.start, [x, sy], [x, y], [sx, y]];
+            if (g.tool !== 'free') g.points = shapePoints(g.tool, g.start, [x, y]);
             else if (Math.hypot(x - g.points.at(-1)[0], y - g.points.at(-1)[1]) >= 3) g.points.push([x, y]);
             drawBoard(canvas, [...blocks, g], blocks.length);
         }
     }
     canvas.onpointermove = event => { if (gesture?.id === event.pointerId) track(event); };
+    function addBlock(points, fill) {
+        blocks.push({ points, color: fill, name: '物体 ' + nextNumber++, note: '' });
+        selected = blocks.length - 1;
+        find('[role=status]').textContent = '';
+    }
+    function finishPen() {
+        if (anchors.length < 3 || gesture) return;
+        const points = penPoints(anchors, true);
+        if (!hasArea(points)) {
+            find('[role=status]').textContent = '请再添加一个偏离直线的锚点。';
+            return;
+        }
+        record();
+        addBlock(points, ink);
+        anchors = [];
+        refresh();
+    }
+    find('[data-finish]').onclick = finishPen;
     canvas.onpointerup = event => {
         if (gesture?.id !== event.pointerId) return;
         track(event);
-        const { points, tool: activeTool, color: fill, original, before } = gesture;
+        const { points, tool: activeTool, color: fill, original, before, anchor } = gesture;
         gesture = null;
         if (activeTool === 'move') {
             const [x, y] = blocks[selected].points[0];
             if (x !== original[0][0] || y !== original[0][1]) record(before);
-        } else {
-            const [first, second] = points;
-            if (second && points.some(([x, y]) =>
-                (second[0] - first[0]) * (y - first[1]) !== (second[1] - first[1]) * (x - first[0]))) {
-                record();
-                blocks.push({ points, color: fill, name: '物体 ' + nextNumber++, note: '' });
-                selected = blocks.length - 1;
-                find('[role=status]').textContent = '';
-            }
+        } else if (activeTool === 'pen') {
+            record();
+            anchors = [...anchors, anchor];
+        } else if (hasArea(points)) {
+            record();
+            addBlock(points, fill);
         }
         refresh();
     };
@@ -232,6 +292,7 @@ export function createSceneEditor(saved) {
     find('[data-new]').onclick = () => {
         cancelGesture();
         blocks = [];
+        anchors = [];
         selected = -1;
         nextNumber = 1;
         past.length = future.length = 0;
@@ -246,8 +307,9 @@ export function createSceneEditor(saved) {
     refresh();
     return { panel, historyShortcut, suspend() {
         cancelGesture();
-        return { ...snapshot(), past, future, tool, ink };
+        return { ...snapshot(), past, future, tool, ink, view: getView() };
     }, getFiles(stem) {
+        if (anchors.length && tool === 'pen') throw new Error('请先闭合钢笔路径，或切换工具以仅附加已完成的物体。');
         if (!blocks.length) throw new Error('请先在画板上画一个色块。');
         return boardFiles(structuredClone(blocks), stem);
     } };

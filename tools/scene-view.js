@@ -1,5 +1,5 @@
-export function sceneView(paper, canvas, controls, isActive) {
-    let zoom = 1, panX = 0, panY = 0;
+export function sceneView(paper, canvas, controls, isActive, saved) {
+    let { zoom = 1, panX = 0, panY = 0 } = saved ?? {};
     const fingers = new Map();
     const center = () => {
         const r = paper.getBoundingClientRect();
@@ -53,4 +53,6 @@ export function sceneView(paper, canvas, controls, isActive) {
     };
     paper.onpointerup = paper.onpointercancel = paper.onlostpointercapture =
         event => fingers.delete(event.pointerId);
+    if (saved) requestAnimationFrame(() => { if (paper.isConnected) render(); });
+    return () => ({ zoom, panX, panY });
 }

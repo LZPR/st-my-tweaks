@@ -1408,7 +1408,7 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
 .stmt-scene-stage { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; padding: 12px; }
 .stmt-scene-tools, .stmt-scene-bottom { display: flex; align-items: center; padding: 3px 6px; background: var(--pose-panel); border: 1px solid var(--pose-line); }
 .stmt-scene-tools { border-radius: 8px 8px 0 0; }
-.stmt-scene-bottom { border-radius: 0 0 8px 8px; }
+.stmt-scene-bottom { flex-wrap: wrap; justify-content: space-between; border-radius: 0 0 8px 8px; }
 .stmt-scene-tools button, .stmt-scene [data-delete] { display: grid; place-items: center; width: 42px; padding: 0; border: 0; background: transparent; }
 .stmt-scene svg { width: 19px; height: 19px; }
 .stmt-scene-tools [data-action=undo] { margin-inline-start: auto; }
@@ -1439,6 +1439,8 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
 @media (max-width: 640px) {
     .stmt-scene-layout { display: flex; flex-direction: column; overflow: auto; }
     .stmt-scene-stage { flex: none; padding: 10px; }
+    .stmt-scene-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .stmt-scene-tools button { width: 100%; }
     .stmt-scene-paper { container-type: normal; }
     .stmt-scene canvas { width: 100%; max-height: none; }
     .stmt-scene aside { flex: none; overflow: visible; padding: 12px; border-left: 0; border-top: 1px solid var(--pose-line); }
