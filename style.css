@@ -1270,6 +1270,8 @@ dialog.stmt-pose-fullscreen {
 .stmt-board-tools button[aria-pressed=true]:hover { background: var(--pose-ink); }
 .stmt-board-adjust output { min-width: 62px; text-align: center; font-size: 12px; }
 .stmt-board-menu { position: absolute; z-index: 2; bottom: 60px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; }
+.stmt-board-menu:has(.stmt-board-scope) { max-width: calc(100% - 12px); max-height: calc(100% - 64px); overflow: auto; }
+.stmt-board-scope { grid-column: 1 / -1; display: grid; gap: 3px; padding: 4px; color: var(--pose-muted); font-size: 13px; }
 .stmt-board-menu[hidden], .stmt-board-adjust[hidden], .stmt-pose [data-action=dismiss] { display: none; }
 .stmt-pose-fullscreen:has(.stmt-board-tools) { position: fixed; }
 .stmt-pose-fullscreen:has(.stmt-board-tools) :is(.stmt-pose-sidebar, footer, h2) { display: none; }

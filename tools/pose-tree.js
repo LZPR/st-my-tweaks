@@ -8,10 +8,11 @@ const regions = [
 // Keep expansion and keyboard focus independent of the selected editing target.
 export function poseTree(tree, choose) {
     const expanded = new Set(['people', 'P1']);
-    let rows = [], focused = 'P1', people, selected;
-    function render(persons, selection, reveal = false) {
+    let rows = [], focused = 'P1', people, selected, marked;
+    function render(persons, selection, reveal = false, group = marked) {
         people = persons;
         selected = selection;
+        marked = group;
         const focusInside = tree.contains(document.activeElement);
         if (reveal) {
             focused = selection;
@@ -49,7 +50,7 @@ export function poseTree(tree, choose) {
             button.dataset.node = r.key;
             button.setAttribute('role', 'treeitem');
             button.setAttribute('aria-level', r.depth);
-            button.setAttribute('aria-selected', String(r.key === selected));
+            button.setAttribute('aria-selected', String(marked ? marked.has(r.key) : r.key === selected));
             button.tabIndex = r.key === focused ? 0 : -1;
             button.style.setProperty('--depth', r.depth - 1);
             const caret = document.createElement('span');

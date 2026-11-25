@@ -18,24 +18,26 @@ export function createPoseEditor(defaultMode, resolveName) {
         <output></output><button type="button" data-step="1" aria-label="放大">＋</button>
         <button type="button" data-action="fit">复位视图</button></div>
         <div class="stmt-board-tools" role="toolbar" aria-label="画板工具"></div></div>
-        <div class="stmt-board-menu" hidden><button data-command="whole">选择整个人物</button>
+        <div class="stmt-board-menu" hidden><label class="stmt-board-scope">可选择的人物<select aria-label="可选择的人物"></select></label><button data-command="whole">选择整个人物</button>
         <button data-command="add">添加人物</button><button data-command="person">人物设置</button>
         <button data-command="note">场景注释</button><button data-command="mode">发送档位</button>
         <button data-command="attach">附加到消息</button></div></section>
-        <aside class="stmt-pose-sidebar"><nav aria-label="姿态场景"><h3>场景</h3><div role="tree" aria-label="场景树"></div></nav>
+        <aside class="stmt-pose-sidebar"><nav aria-label="姿态场景"><h3>场景</h3><div role="tree" aria-label="场景树" aria-multiselectable="true"></div></nav>
         <section class="stmt-pose-inspector"><button type="button" data-action="dismiss" aria-label="关闭画板面板">×</button><h3></h3>
         <div data-page="people"><button type="button" data-action="add">添加人物</button></div>
         <div data-page="person"><label>人物名称<input maxlength="128" placeholder="{{char}} 或 {{user}}"></label>
         <small>可使用 ST 宏。用移动工具拖动整个人物。</small>
         <button type="button" data-action="remove">删除人物</button></div>
-        <div data-page="joint"><small>选择工具点选关节，重复点按可切换重叠目标。用移动工具拖动，或按方向键微调。</small></div>
+        <div data-page="joint"><small>点选关节，拖框可选多个关节。重复点按可切换重叠目标。「⋯」可限制选择范围。</small></div>
+        <div data-page="group"><small>用选择工具重新框选，或用移动工具拖动已选关节。</small></div>
         <div data-page="note"><textarea rows="3" aria-label="场景注释" placeholder="例如：右手搭在对方肩上。"></textarea></div>
         <div data-page="mode"><select aria-label="本次发送档位"></select></div></section></aside></div>
         <div role="status" class="stmt-pose-status"></div>`;
     const find = selector => panel.querySelector(selector);
     const action = key => find('[data-action="' + key + '"]');
     const canvas = find('canvas'), ctx = canvas.getContext('2d');
-    const name = find('input'), note = find('textarea'), mode = find('select');
+    const name = find('input'), note = find('textarea'), mode = find('[data-page=mode] select');
+    const scope = find('.stmt-board-scope select');
     for (const item of poseModes) mode.add(new Option(item.label, item.id));
     let nextNumber = 1;
     function makePerson(offset) {
@@ -46,6 +48,9 @@ export function createPoseEditor(defaultMode, resolveName) {
     }
     let state = { people: [makePerson(0)], note: '', mode: defaultMode };
     let activeId = 'P1', selected = 4, node = 'P1/4';
+    // null uses the single target above. An empty rectangle selects no joints.
+    let group = null, scopeId = '';
+    const eligible = () => state.people.filter(p => !scopeId || p.id === scopeId);
     const camera = boardCamera();
     const tools = { select: ['选择', 'arrow-pointer'], move: ['移动', 'arrows-up-down-left-right'],
         scale: ['缩放', 'up-right-and-down-left-from-center'], view: ['查看', 'hand'] };
@@ -68,7 +73,7 @@ export function createPoseEditor(defaultMode, resolveName) {
     let drag, typing;
     const past = [], future = [];
     const person = () => state.people.find(p => p.id === activeId);
-    const snapshot = () => structuredClone({ state, activeId, selected, node, nextNumber });
+    const snapshot = () => structuredClone({ state, activeId, selected, node, nextNumber, group });
     const renderTree = poseTree(find('[role="tree"]'), choose);
     function buttons() {
         action('undo').disabled = !past.length;
@@ -90,11 +95,37 @@ export function createPoseEditor(defaultMode, resolveName) {
         if (!from.length) return;
         if (typing === name) resolvePerson();
         to.push(snapshot());
-        ({ state, activeId, selected, node, nextNumber } = from.pop());
+        ({ state, activeId, selected, node, nextNumber, group } = from.pop());
+        constrainSelection();
         typing = undefined;
         cycle = undefined;
         refresh(true);
     }
+    function constrainSelection() {
+        if (!state.people.some(p => p.id === scopeId)) scopeId = '';
+        if (group && scopeId) group = group.filter(hit => hit.id === scopeId);
+        if (scopeId && activeId !== scopeId) {
+            activeId = node = scopeId;
+            selected = -1;
+            group ??= [];
+        }
+        if (group?.length) {
+            ({ id: activeId, joint: selected } = group[0]);
+            if (!['people', 'note', 'mode'].includes(node)) node = activeId + '/' + selected;
+        }
+    }
+    function scopeOptions() {
+        scope.replaceChildren(new Option('所有人', ''), ...state.people.map(p => new Option(p.id + ' · ' + p.name, p.id)));
+        scope.value = scopeId;
+    }
+    scope.onchange = () => {
+        cancelDrag();
+        scopeId = scope.value;
+        cycle = undefined;
+        constrainSelection();
+        closePanels();
+        refresh(true);
+    };
     function frame() {
         const box = canvas.getBoundingClientRect();
         const bottom = panel.closest('.stmt-pose-fullscreen') ? 112 : 60;
@@ -112,25 +143,50 @@ export function createPoseEditor(defaultMode, resolveName) {
         ctx.clearRect(0, 0, w, h);
         const v = camera.view;
         ctx.setTransform(dpr * fit * v.scale, 0, 0, dpr * fit * v.scale, dpr * (left + fit * v.x), dpr * (top + fit * v.y));
-        drawScene(ctx, state.people, person(), selected);
-        if (selected < 0 || tool === 'scale') {
+        const highlighted = drag?.preview ?? group;
+        drawScene(ctx, state.people, person(), highlighted ? -1 : selected);
+        if (drag?.corner) {
+            const [x, y] = drag.origin, [right, bottom] = drag.corner;
+            ctx.fillStyle = 'rgba(102,192,255,.16)';
+            ctx.fillRect(x, y, right - x, bottom - y);
+            ctx.strokeStyle = '#8bd3ff';
+            ctx.lineWidth = 1.5 / (fit * v.scale);
+            ctx.strokeRect(x, y, right - x, bottom - y);
+        }
+        if (highlighted && tool !== 'scale') {
+            ctx.lineWidth = 2 / (fit * v.scale);
+            ctx.strokeStyle = '#fff';
+            const owners = new Map(state.people.map(p => [p.id, p]));
+            for (const { id, joint } of highlighted) {
+                const [x, y] = owners.get(id).points[joint];
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+        }
+        if ((!highlighted && selected < 0) || tool === 'scale') {
             const xs = person().points.map(p => p[0]), ys = person().points.map(p => p[1]);
             ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1 / (fit * v.scale); ctx.setLineDash([5, 4]);
             ctx.strokeRect(Math.min(...xs) - 8, Math.min(...ys) - 8, Math.max(...xs) - Math.min(...xs) + 16, Math.max(...ys) - Math.min(...ys) + 16);
             ctx.setLineDash([]);
         }
         const part = tool === 'scale' ? '整个人物' : joints[selected]?.[1] ?? '整个人物';
-        canvas.setAttribute('aria-label', person().name + ' · ' + part);
         const legend = find('.stmt-pose-legend');
-        legend.textContent = person().id + ' · ' + person().name + ' / ' + part;
+        let caption = person().id + ' · ' + person().name + ' / ' + part;
+        if (highlighted && tool !== 'scale') caption = highlighted.length ? '已选 ' + highlighted.length + ' 个关节' : '未选中关节';
+        legend.textContent = caption + (scopeId ? ' · 限 ' + scopeId : '');
+        canvas.setAttribute('aria-label', legend.textContent);
         adjust.querySelector('output').textContent = tool === 'view' ? '视图 ' + Math.round(v.scale * 100) + '%' : '整个人物';
     }
     function refresh(reveal = false) {
-        renderTree(state.people, node, reveal);
-        const page = ['people', 'note', 'mode'].includes(node) ? node : selected < 0 ? 'person' : 'joint';
+        scopeOptions();
+        const marks = group && new Set(group.map(({ id, joint }) => id + '/' + joint));
+        if (marks && ['people', 'note', 'mode'].includes(node)) marks.add(node);
+        renderTree(eligible(), node, reveal, marks);
+        const page = ['people', 'note', 'mode'].includes(node) ? node : group ? 'group' : selected < 0 ? 'person' : 'joint';
         for (const el of panel.querySelectorAll('[data-page]')) el.hidden = el.dataset.page !== page;
         const captions = { people: '人物管理', note: '场景注释', mode: '本次发送档位', person: person().id + ' · ' + person().name,
-            joint: person().name + ' / ' + (joints[selected]?.[1] ?? '') };
+            group: '已选 ' + (group?.length ?? 0) + ' 个关节', joint: person().name + ' / ' + (joints[selected]?.[1] ?? '') };
         find('.stmt-pose-inspector h3').textContent = captions[page];
         name.value = person().template;
         note.value = state.note;
@@ -144,6 +200,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         node = key;
         const [id, joint] = key.split('/');
         if (state.people.some(p => p.id === id)) {
+            group = null;
             activeId = id;
             selected = joint === undefined ? -1 : Number(joint);
             cycle = undefined;
@@ -155,8 +212,11 @@ export function createPoseEditor(defaultMode, resolveName) {
         const gap = offset => Math.min(...state.people.map(p => Math.abs(200 + offset - p.points[1][0])));
         const p = makePerson([-72, 72, 0].sort((a, b) => gap(b) - gap(a))[0]);
         state.people.push(p);
-        activeId = node = p.id;
-        selected = -1;
+        if (!scopeId) {
+            group = null;
+            activeId = node = p.id;
+            selected = -1;
+        }
         cycle = undefined;
         refresh(true);
     };
@@ -165,6 +225,8 @@ export function createPoseEditor(defaultMode, resolveName) {
         record();
         const index = state.people.indexOf(person());
         state.people.splice(index, 1);
+        group = null;
+        if (scopeId === activeId) scopeId = '';
         activeId = node = state.people[Math.min(index, state.people.length - 1)].id;
         selected = -1;
         cycle = undefined;
@@ -185,6 +247,7 @@ export function createPoseEditor(defaultMode, resolveName) {
                 find('.stmt-pose-inspector h3').textContent = title;
                 const row = find('[data-node="' + activeId + '"]');
                 if (row) row.lastChild.textContent = title;
+                scopeOptions();
                 paint();
             }
         };
@@ -236,6 +299,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         if (cmd === 'attach') { panel.closest('dialog').querySelector('.stmt-pose-attach').click(); return; }
         if (cmd === 'add') action('add').click();
         else choose(['whole', 'person'].includes(cmd) ? activeId : cmd);
+        if (cmd === 'add' && scopeId) return;
         if (cmd === 'whole') setTool('move');
         else if (panel.closest('.stmt-pose-fullscreen')) panel.classList.add('stmt-board-inspecting');
     };
@@ -253,11 +317,12 @@ export function createPoseEditor(defaultMode, resolveName) {
     }
 
     function move(before, dx, dy) {
-        const positions = selected < 0 ? before : [before[selected]];
+        if (!before.length) return;
+        const positions = before.map(target => target.point);
         const xs = positions.map(p => p[0]), ys = positions.map(p => p[1]);
         dx = Math.max(12 - Math.min(...xs), Math.min(388 - Math.max(...xs), Math.round(dx)));
         dy = Math.max(12 - Math.min(...ys), Math.min(428 - Math.max(...ys), Math.round(dy)));
-        for (const i of selected < 0 ? before.keys() : [selected]) person().points[i] = [before[i][0] + dx, before[i][1] + dy];
+        for (const { owner, joint, point } of before) owner.points[joint] = [point[0] + dx, point[1] + dy];
         paint();
     }
     function position(event) {
@@ -266,16 +331,26 @@ export function createPoseEditor(defaultMode, resolveName) {
     }
     function beginMove() {
         const before = snapshot();
-        return { before, points: person().points.slice(), owner: person() };
+        const points = person().points.slice();
+        const targets = tool === 'scale' || (!group && selected < 0)
+            ? points.map((_, joint) => ({ id: activeId, joint }))
+            : group ?? [{ id: activeId, joint: selected }];
+        const owners = new Map(state.people.map(p => [p.id, p]));
+        const entries = targets.map(({ id, joint }) => {
+            const owner = owners.get(id);
+            return { owner, joint, point: owner.points[joint] };
+        });
+        return { before, points, entries };
     }
     function finishMove(step) {
-        if (step.points.some(([x, y], i) => x !== step.owner.points[i][0] || y !== step.owner.points[i][1])) record(step.before);
+        if (step.entries.some(({ owner, joint, point }) => point[0] !== owner.points[joint][0] || point[1] !== owner.points[joint][1])) record(step.before);
     }
     function pick(event) {
         const [x, y] = camera.world(position(event));
         const radius = (event.pointerType === 'touch' ? 19 : 12) / (frame().fit * camera.view.scale);
-        const hits = boardHits(state.people, x, y, radius);
-        if (!hits.length) { cycle = undefined; return; }
+        const hits = boardHits(eligible(), x, y, radius);
+        if (!hits.length) { cycle = undefined; group = []; node = activeId; refresh(); return; }
+        group = null;
         const previous = cycle && Math.hypot(event.clientX - cycle.x, event.clientY - cycle.y) <= 6;
         // Keep the first tap's ordering when a finger lands a few pixels off center.
         const targets = previous && cycle.hits.every(h => hits.some(other => other.id === h.id && other.joint === h.joint))
@@ -313,9 +388,19 @@ export function createPoseEditor(defaultMode, resolveName) {
             step: tool === 'select' ? null : beginMove() };
     };
     function applyDrag(event) {
-        if (tool === 'move') {
+        if (tool === 'select' && (drag.corner || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 8)) {
+            drag.corner = camera.world(position(event));
+            const [x, y] = drag.origin, [right, bottom] = drag.corner;
+            drag.preview = [];
+            for (const p of eligible()) p.points.forEach(([px, py], joint) => {
+                if (px >= Math.min(x, right) && px <= Math.max(x, right) && py >= Math.min(y, bottom) && py <= Math.max(y, bottom)) {
+                    drag.preview.push({ id: p.id, joint });
+                }
+            });
+            paint();
+        } else if (tool === 'move') {
             const [x, y] = camera.world(position(event));
-            move(drag.step.points, x - drag.origin[0], y - drag.origin[1]);
+            move(drag.step.entries, x - drag.origin[0], y - drag.origin[1]);
         } else if (tool === 'scale') {
             person().points = scalePerson(drag.step.points, Math.exp((drag.y - event.clientY) / 140));
             paint();
@@ -331,12 +416,23 @@ export function createPoseEditor(defaultMode, resolveName) {
         camera.end(event.pointerId);
         if (drag?.id !== event.pointerId) return;
         if (drag.step) { applyDrag(event); finishMove(drag.step); }
-        else if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= 8) pick(event);
+        else {
+            applyDrag(event);
+            if (!drag.corner) pick(event);
+            else {
+                group = drag.preview;
+                cycle = undefined;
+                node = activeId;
+                constrainSelection();
+                refresh(true);
+            }
+        }
         drag = undefined;
+        paint();
     };
     function cancelDrag() {
         camera.clear();
-        if (drag?.step) drag.step.owner.points = drag.step.points;
+        if (drag?.step) for (const { owner, joint, point } of drag.step.entries) owner.points[joint] = point;
         drag = undefined;
         paint();
     }
@@ -352,7 +448,7 @@ export function createPoseEditor(defaultMode, resolveName) {
         if (!delta || drag || tool !== 'move') return;
         event.preventDefault();
         const step = beginMove();
-        move(step.points, ...delta);
+        move(step.entries, ...delta);
         finishMove(step);
     };
     const observer = new ResizeObserver(paint);
