@@ -1,5 +1,5 @@
 import { createPoseEditor } from './pose-editor.js';
-import { drawPose, joints } from './pose.js';
+import { describePose, drawPose } from './pose.js';
 
 async function poseFiles(points, note) {
     const canvas = document.createElement('canvas');
@@ -12,14 +12,7 @@ async function poseFiles(points, note) {
     drawPose(ctx, points);
     const image = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!image) throw new Error('骨架图生成失败，请重试。');
-    const data = {
-        version: 1, skeleton: 'OpenPose COCO_18', view: 'front',
-        coordinates: '图像像素，原点在左上角，x 向右，y 向下',
-        width: canvas.width, height: canvas.height,
-        legend: '橙色 R 为人物自身右侧，青色 L 为人物自身左侧，白色为中线。',
-        joints: Object.fromEntries(points.map(([x, y], i) => [joints[i][0], [2 * x, 2 * y]])),
-        note,
-    };
+    const data = describePose(points, note, canvas.width, canvas.height);
     const name = '姿态-' + Date.now();
     return [new File([image], name + '.png', { type: 'image/png' }),
         new File([JSON.stringify(data, null, 2)], name + '.txt', { type: 'text/plain' })];
