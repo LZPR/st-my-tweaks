@@ -51,22 +51,27 @@ function start(context, getConfig) {
     }
     entry.onclick = () => {
         if (active) return;
-        const { panel, people, note } = createPoseEditor();
-        const mode = modeSelector('本次发送档位', getConfig());
-        panel.querySelector('.stmt-pose-controls').append(mode.label);
+        const { panel, fullscreen, historyShortcut, getDraft } = createPoseEditor(poseMode(getConfig()).id,
+            template => SillyTavern.getContext().substituteParams(template));
         const dialog = document.createElement('dialog');
         dialog.className = 'stmt-pose-dialog';
         dialog.setAttribute('aria-label', '姿态编辑');
+        dialog.addEventListener('keydown', historyShortcut);
         const footer = document.createElement('footer');
         footer.innerHTML = '<button type="button">取消</button><button type="button" class="stmt-pose-attach">附加到消息</button>';
         const [cancel, attach] = footer.children;
         cancel.onclick = close;
-        dialog.oncancel = event => { event.preventDefault(); close(); };
+        dialog.oncancel = event => {
+            event.preventDefault();
+            if (dialog.classList.contains('stmt-pose-fullscreen')) fullscreen(false);
+            else close();
+        };
         attach.onclick = async () => {
             attach.disabled = true;
             try {
-                const files = await poseFiles(structuredClone(people), note.value,
-                    poseMode({ poseMode: mode.select.value }), getConfig().currentRequestOnly === true);
+                const draft = getDraft();
+                const files = await poseFiles(draft.people, draft.note,
+                    poseMode({ poseMode: draft.mode }), getConfig().currentRequestOnly === true);
                 if (active !== dialog) return;
                 const transfer = new DataTransfer();
                 for (const file of files) transfer.items.add(file);
