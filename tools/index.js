@@ -9,5 +9,6 @@ import { storyRoutes } from './story-routes.js';
 import { assistantChat } from './assistant-chat.js';
 import { attachChat } from './attach-chat.js';
 import { visualInput } from './visual-input.js';
+import { requestPreview } from './request-preview.js';
 
-export const tools = [autoExpandEditor, expandedEditorShortcuts, promptEditHistory, promptDrafts, plistEditor, randomName, messageMenu, storyRoutes, assistantChat, attachChat, visualInput];
+export const tools = [autoExpandEditor, expandedEditorShortcuts, promptEditHistory, promptDrafts, plistEditor, randomName, messageMenu, storyRoutes, assistantChat, attachChat, visualInput, requestPreview];
