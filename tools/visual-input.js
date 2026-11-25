@@ -3,6 +3,8 @@ import { createSceneEditor } from './scene-editor.js';
 import { renderSceneImage } from './pose-scene.js';
 import { poseMode, poseModes, sceneText } from './pose-export.js';
 import { visualFileStem } from './pose-context.js';
+import { presets } from './pose-presets.js';
+import { renderPresetManager } from './pose-preset-manager.js';
 
 async function poseImage(people) {
     const canvas = document.createElement('canvas');
@@ -41,7 +43,7 @@ function menuEntry(title, icon) {
 }
 
 let syncEntry;
-function start(context, getConfig) {
+function start(context, getConfig, updateConfig) {
     const entry = menuEntry('姿态编辑', 'fa-person');
     const sceneEntry = menuEntry('场景编辑', 'fa-shapes');
     syncEntry = config => {
@@ -71,6 +73,7 @@ function start(context, getConfig) {
         const footer = document.createElement('footer');
         footer.innerHTML = '<button type="button">取消</button><button type="button" class="stmt-pose-attach">附加到消息</button>';
         const [cancel, attach] = footer.children;
+        if (kind === '姿态') cancel.textContent = '关闭';
         cancel.onclick = close;
         dialog.oncancel = event => {
             event.preventDefault();
@@ -110,7 +113,9 @@ function start(context, getConfig) {
         const ctx = SillyTavern.getContext();
         const key = JSON.stringify([ctx.groupId, ctx.characters?.[ctx.characterId]?.avatar, ctx.getCurrentChatId()]);
         const editor = createPoseEditor(poseMode(getConfig()).id,
-            template => ctx.substituteParams(template), boards.get(key));
+            template => ctx.substituteParams(template), boards.get(key), {
+                getLibrary: () => presets(getConfig()), saveLibrary: posePresets => updateConfig({ posePresets }),
+            });
         onClose = () => boards.set(key, editor.suspend());
         open('姿态', { ...editor, getFiles(stem) {
             const draft = editor.getDraft();
@@ -183,6 +188,7 @@ function renderSettings(canvas, draft) {
     status.textContent = '正在检查当前连接的图片内联状态…';
     canvas.append(label, sceneLabel, mode.label, hint, estimate, status, lifetime, lifetimeHint);
     showInlineStatus(status);
+    return renderPresetManager(canvas, draft);
 }
 
 async function showInlineStatus(status) {

@@ -3,8 +3,9 @@ import { drawScene, newPerson } from './pose-scene.js';
 import { boardCamera, boardHits, scalePerson } from './pose-board.js';
 import { poseModes } from './pose-export.js';
 import { poseTree } from './pose-tree.js';
+import { placePreset, presetTool } from './pose-presets.js';
 
-export function createPoseEditor(defaultMode, resolveName, saved) {
+export function createPoseEditor(defaultMode, resolveName, saved, library) {
     const panel = document.createElement('div');
     panel.className = 'stmt-pose';
     panel.innerHTML = `<header><h2>姿态编辑</h2><div class="stmt-pose-actions">
@@ -64,6 +65,11 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
         btn.onclick = () => setTool(id);
         toolbar.append(btn);
     }
+    const presetButton = document.createElement('button');
+    presetButton.type = 'button';
+    presetButton.textContent = '预设';
+    presetButton.setAttribute('aria-expanded', 'false');
+    toolbar.append(presetButton);
     const more = document.createElement('button');
     more.type = 'button';
     more.textContent = '⋯';
@@ -80,6 +86,22 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
     const person = () => state.people.find(p => p.id === activeId);
     const snapshot = () => structuredClone({ state, activeId, selected, node, nextNumber, group });
     let renderTree = poseTree(find('[role="tree"]'), choose);
+    const presets = presetTool({ ...library, people: eligible, currentId: () => activeId,
+        dismiss() { closePanels(); presetButton.focus(); },
+        apply(target, item) {
+            const points = placePreset(item.points, target.points);
+            if (points.some(([x, y], i) => x !== target.points[i][0] || y !== target.points[i][1])) record();
+            target.points = points;
+            choose(target.id);
+        },
+    });
+    panel.append(presets.box);
+    presetButton.onclick = () => {
+        const show = presets.box.hidden;
+        cancelDrag();
+        closePanels();
+        if (show) { presetButton.setAttribute('aria-expanded', 'true'); presets.open(); }
+    };
     function buttons() {
         action('undo').disabled = !past.length;
         action('redo').disabled = !future.length;
@@ -98,6 +120,7 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
     function restore(from, to) {
         cancelDrag();
         if (!from.length) return;
+        closePanels();
         if (typing === name) resolvePerson();
         to.push(snapshot());
         ({ state, activeId, selected, node, nextNumber, group } = from.pop());
@@ -263,6 +286,7 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
     action('undo').onclick = () => restore(past, future);
     action('redo').onclick = () => restore(future, past);
     function historyShortcut(event) {
+        if (presets.box.contains(event.target)) return;
         if (event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
         const key = event.key.toLowerCase();
         if (key !== 'z' && key !== 'y') return;
@@ -285,7 +309,9 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
     action('fullscreen').onclick = () => fullscreen(action('fullscreen').getAttribute('aria-pressed') === 'false');
 
     function closePanels() {
-        const visible = !menu.hidden || panel.classList.contains('stmt-board-inspecting');
+        const visible = !presets.box.hidden || !menu.hidden || panel.classList.contains('stmt-board-inspecting');
+        presets.box.hidden = true;
+        presetButton.setAttribute('aria-expanded', 'false');
         menu.hidden = true;
         more.setAttribute('aria-expanded', 'false');
         panel.classList.remove('stmt-board-inspecting');
@@ -461,6 +487,7 @@ export function createPoseEditor(defaultMode, resolveName, saved) {
         if (drag?.id === event.pointerId) cancelDrag();
     };
     panel.addEventListener('pointerdown', event => {
+        if (!presets.box.hidden && !presets.box.contains(event.target) && event.target !== presetButton) closePanels();
         if (drag && event.target !== canvas) cancelDrag();
     }, true);
     canvas.onkeydown = event => {

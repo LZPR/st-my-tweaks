@@ -1294,6 +1294,31 @@ dialog.stmt-pose-fullscreen {
     .stmt-board-tools button { padding-inline: 5px; font-size: 14px; }
 }
 
+.stmt-pose:has(.stmt-preset-tool) { position: relative; }
+.stmt-preset-tool:not([hidden]) {
+    position: absolute; z-index: 4; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: grid; gap: 8px; width: min(340px, 95%); max-height: 94%; overflow: auto;
+    background: var(--pose-bg); border: 1px solid var(--pose-line); border-radius: 10px;
+    padding: 14px; box-shadow: 0 5px 24px #0009;
+}
+.stmt-preset-heading, .stmt-preset-buttons { display: flex; align-items: center; gap: 6px; }
+.stmt-preset-heading { justify-content: space-between; }
+.stmt-preset-heading button { min-width: 42px; }
+.stmt-preset-tool label { display: grid; gap: 4px; font-size: 13px; }
+.stmt-preset-tool small:empty { display: none; }
+.stmt-preset-manager { margin-top: 1em; }
+.stmt-preset-manager label { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+.stmt-preset-list { max-height: 190px; overflow: auto; padding-inline: 6px; }
+.stmt-preset-buttons { flex-wrap: wrap; margin-block: 6px; }
+.stmt-preset-buttons button {
+    min-height: 42px; padding: 4px 10px; border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 6px; background: var(--SmartThemeBlurTintColor, #252525); color: inherit; cursor: pointer;
+}
+.stmt-preset-buttons button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 360px) {
+    .stmt-board-tools button { min-width: 38px; padding-inline: 4px; }
+}
+
 /* Request preview */
 dialog.stmt-rp {
     --rp-base: #17191e;
