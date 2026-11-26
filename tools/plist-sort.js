@@ -29,7 +29,7 @@ export function moveItem(blocks, source, target) {
     return true;
 }
 
-export function sortView(blocks, display, move, unquote) {
+export function sortView(blocks, display, move, unquote, sectionIndex) {
     const view = document.createElement('div');
     view.className = 'pl-sort';
     let selected, pointer, marker, frame;
@@ -46,7 +46,7 @@ export function sortView(blocks, display, move, unquote) {
     blocks.forEach((rows, block) => {
         const group = document.createElement('section');
         const title = document.createElement('h4');
-        title.textContent = '片段 ' + (block + 1);
+        title.textContent = '片段 ' + (sectionIndex + 1);
         group.append(title);
         const names = rows.map(row => attributeName(row.appliedPrefix, row.name));
         const duplicates = repeated(names);

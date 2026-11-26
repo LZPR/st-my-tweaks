@@ -41,6 +41,8 @@ function action(label, run) {
 
 const paths = {
     expand: 'M14 4h6v6m0-6-7 7M10 20H4v-6m0 6 7-7',
+    collapse: 'm6 3 6 6 6-6M5 12h14m-13 9 6-6 6 6',
+    unfold: 'm6 8 6-6 6 6M5 12h14m-13 4 6 6 6-6',
     fold: 'm5 9 7 7 7-7',
     find: 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 1 1 16 0',
     add: 'M12 5v14M5 12h14',
@@ -161,17 +163,20 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const count = box('pl-count', 'small');
         const fold = iconButton('折叠参数', 'fold', () => {
             if (!drawer.hidden && !finish()) return;
-            parameters.hidden = !parameters.hidden;
+            setFolded(!parameters.hidden);
+        });
+        function setFolded(folded) {
+            parameters.hidden = folded;
             fold.title = parameters.hidden ? '展开参数' : '折叠参数';
             fold.setAttribute('aria-label', fold.title);
             fold.setAttribute('aria-expanded', String(!parameters.hidden));
-        });
+        }
         fold.setAttribute('aria-expanded', 'true');
         nameCell.prepend(fold);
         parameters.append(element('small', '参数'), chips, count);
         const drawer = box('pl-drawer');
         drawer.hidden = true;
-        const row = { key, appliedPrefix, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
+        const row = { key, appliedPrefix, setFolded, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
             ? value : items.join(', ') };
         row.appendItems = additions => {
             items.push(...additions);
@@ -394,7 +399,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         }
         return result;
     }
-    return { read, finish, get count() { return rows.length; }, snapshot: () => rows.map(row => ({
+    return { read, finish, foldAll(folded) {
+        if (folded && !finish()) return;
+        rows.forEach(row => row.setFolded(folded));
+    }, get count() { return rows.length; }, snapshot: () => rows.map(row => ({
         name: row.key.value, appliedPrefix: row.appliedPrefix, value: row.read(), draft: row.draft?.(),
     })) };
 }
@@ -423,14 +431,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     const undo = iconButton('撤销', 'undo', () => travel(-1));
     const redo = iconButton('重做', 'redo', () => travel(1));
     const organize = iconButton('整理模式', 'sort', () => {
-        if (!sorting) {
-            const current = picker.selectedIndex;
-            for (const [i, section] of readers.entries()) {
-                show(i);
-                if (!section.finish()) return;
-            }
-            show(current);
-        }
+        if (!sorting && !readers[picker.selectedIndex].finish()) return;
         setSorting(!sorting);
     });
     organize.setAttribute('aria-pressed', 'false');
@@ -438,9 +439,21 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         addBlock([]);
         record();
     });
+    const deleteBlock = iconButton('删除当前片段', 'remove', () => {
+        const index = picker.selectedIndex;
+        const state = snapshot();
+        const origins = readers.map(section => section.origin);
+        state.splice(index, 1);
+        origins.splice(index, 1);
+        if (!state.length) state.push([]);
+        restore(state, Math.min(index, state.length - 1), origins);
+        record(undefined, index);
+    });
+    const foldAll = iconButton('折叠全部属性', 'collapse', () => readers[picker.selectedIndex].foldAll(true));
+    const expandAll = iconButton('展开全部属性', 'unfold', () => readers[picker.selectedIndex].foldAll(false));
     const findButton = iconButton('查找当前片段', 'find', () => toggleFind(findBar.hidden));
     findButton.setAttribute('aria-expanded', 'false');
-    navigation.append(findButton, undo, redo, organize, pickerBox, newBlock);
+    navigation.append(findButton, undo, redo, organize, foldAll, expandAll, pickerBox, newBlock, deleteBlock);
     const title = box('pl-title');
     const total = box('pl-total', 'small');
     title.append(element('h3', 'PLists 编辑器'), total);
@@ -579,7 +592,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         if (batch.hidden === on) {
             if (on) panel.closest('dialog')?.querySelector('.popup-controls')?.before(batch);
             batch.hidden = !on;
-            for (const el of [undo, redo, organize, newBlock, quoteLabel,
+            for (const el of [undo, redo, organize, newBlock, deleteBlock, foldAll, expandAll, quoteLabel,
                 ...sections.querySelectorAll('.pl-name-cell, .pl-row-menu, .pl-icon, .pl-add-row')]) el.inert = on;
         }
         selectedCount.textContent = '已选 ' + selected.size + ' 项';
@@ -599,7 +612,6 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
             });
         });
     }
-    let listeners = new AbortController();
     const history = [];
     let position = -1;
     function updateHeader() {
@@ -609,7 +621,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     }
     function record(group, index = picker.selectedIndex) {
         refreshFind();
-        const state = JSON.stringify(snapshot());
+        const state = JSON.stringify({ rows: snapshot(), origins: readers.map(section => section.origin) });
         if (history[position]?.state === state) return;
         history.splice(position + 1);
         if (position > 0 && group && history[position].group === group && history[position].index === index) {
@@ -629,8 +641,9 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         const index = history[Math.max(position, next)].index;
         position = next;
         const state = JSON.parse(history[position].state);
-        if (sorting && state.some(rows => rows.some(row => row.draft))) setSorting(false);
-        restore(state, Math.min(index, state.length - 1));
+        const current = Math.min(index, state.rows.length - 1);
+        if (sorting && state.rows[current].some(row => row.draft)) setSorting(false);
+        restore(state.rows, current, state.origins);
         if (sorting) paintSort();
         updateHeader();
         const focusUndo = redo.disabled || (direction < 0 && !undo.disabled);
@@ -639,28 +652,31 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     function snapshot() {
         return readers.map(section => section.snapshot());
     }
-    function restore(state, index) {
-        listeners.abort();
-        listeners = new AbortController();
+    function restore(state, index, origins = readers.map(section => section.origin)) {
+        readers.forEach(reader => reader.listeners.abort());
         sections.replaceChildren();
         picker.replaceChildren();
         readers.length = 0;
-        state.forEach(addBlock);
+        state.forEach((rows, i) => addBlock(rows, origins[i]));
         show(index);
     }
     function paintSort() {
-        sortPanel.replaceChildren(hint, sortView(snapshot(), raw => quoteToggle.checked ? unquote(raw) : raw, (state, index) => {
-            restore(state, index);
+        const index = picker.selectedIndex;
+        sortPanel.replaceChildren(hint, sortView([readers[index].snapshot()], raw => quoteToggle.checked ? unquote(raw) : raw, ([sorted]) => {
+            readers[index].listeners.abort();
+            const section = sections.children[index];
+            section.replaceChildren();
+            readers[index] = buildReader(section, sorted, index, readers[index].origin);
             record(undefined, index);
             paintSort();
-        }, unquote));
+        }, unquote, index));
     }
     function setSorting(on) {
         if (on && !findBar.hidden) toggleFind(false);
         findButton.hidden = on;
         sorting = on;
         organize.setAttribute('aria-pressed', String(on));
-        sections.hidden = pickerBox.hidden = newBlock.hidden = on;
+        sections.hidden = pickerBox.hidden = newBlock.hidden = deleteBlock.hidden = foldAll.hidden = expandAll.hidden = on;
         sortPanel.hidden = !on;
         if (on) paintSort();
         else sortPanel.replaceChildren();
@@ -699,16 +715,21 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         refreshFind();
     }
     picker.addEventListener('change', () => show(picker.selectedIndex));
-    function addBlock(rows) {
+    function buildReader(section, rows, index, origin) {
+        const listeners = new AbortController();
+        const reader = rowList(section, rows, getPresets(getConfig()), prefix, () => config.usePrefix !== false,
+            quoteToggle, group => record(group, index), listeners.signal);
+        return Object.assign(reader, { origin, listeners });
+    }
+    function addBlock(rows, origin = null) {
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
         const index = readers.length;
-        readers.push(rowList(section, rows, getPresets(getConfig()), prefix, () => config.usePrefix !== false, quoteToggle,
-            group => record(group, index), listeners.signal));
+        readers.push(buildReader(section, rows, index, origin));
         sections.append(section);
         show(readers.length - 1);
     }
-    blocks.forEach(block => addBlock(block.rows));
+    blocks.forEach((block, i) => addBlock(block.rows, i));
     if (!blocks.length) addBlock([]);
     show(0);
     record();
@@ -727,13 +748,15 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
                 toastr.error(sourceChanged, 'PLists 编辑器');
                 return false;
             }
-            const drafts = [];
+            const drafts = blocks.map(() => []);
             if (sorting) setSorting(false);
             for (const [i, { read }] of readers.entries()) {
                 show(i);
                 const draft = read();
                 if (!draft) return false;
-                drafts.push(draft);
+                const origin = readers[i].origin;
+                if (origin === null) drafts.push(draft);
+                else drafts[origin] = draft;
             }
             next = writeBlocks(original, blocks, drafts);
             return true;

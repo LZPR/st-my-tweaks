@@ -346,7 +346,7 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 }
 
 .st-plist h3 { margin: 0; font-size: 1.17em; }
-.st-plist .pl-navigation { margin-inline-start: auto; }
+.st-plist .pl-navigation { margin-inline-start: auto; max-width: 100%; flex-wrap: wrap; }
 .st-plist .pl-toggle {
     position: relative;
     display: inline-flex;
