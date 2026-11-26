@@ -1627,7 +1627,7 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
     border-inline-start: 3px solid var(--pl-accent);
     border-radius: 7px;
 }
-.st-plist .pl-name-cell { display: flex; align-items: start; flex-wrap: wrap; gap: .4em; }
+.st-plist .pl-name-cell { display: flex; align-items: center; flex-wrap: wrap; gap: .4em; }
 .st-plist .pl-name-cell button { white-space: nowrap; }
 .st-plist .pl-name-cell .pl-key { flex: 1 1 8em; }
 .st-plist .pl-row > .pl-icon { grid-area: 1 / 2; }
@@ -1653,14 +1653,20 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
     box-shadow: 0 .25em .7em #0005;
 }
 .st-plist .pl-name-cell .pl-icon[aria-expanded="false"] svg { transform: rotate(-90deg); }
-.st-plist .pl-row-menu { grid-area: 1 / 2; position: relative; }
+.st-plist .pl-row-menu { grid-area: 1 / 2; position: relative; align-self: center; }
 .st-plist .pl-row-menu summary {
+    display: grid;
+    place-items: center;
+    width: 2em;
+    height: 2em;
     list-style: none;
     cursor: pointer;
-    padding: .15em .55em;
-    border: 1px solid var(--pl-line);
-    border-radius: 5px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--pl-accent);
 }
+.st-plist .pl-row-menu summary span { font-size: .72em; letter-spacing: .08em; }
+.st-plist .pl-row-menu[open] summary, .st-plist .pl-row-menu summary:hover { background: var(--pl-surface); }
 .st-plist .pl-row-menu summary::-webkit-details-marker { display: none; }
 .st-plist .pl-row-actions {
     width: max-content;
@@ -1675,4 +1681,15 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
     border: 1px solid var(--pl-line);
     border-radius: 6px;
 }
-.st-plist .pl-row-actions button { width: 100%; white-space: nowrap; }
+.st-plist .pl-row-actions button {
+    width: 100%;
+    padding: .45em .75em;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    color: var(--pl-accent);
+    text-align: start;
+    white-space: nowrap;
+}
+.st-plist .pl-row-actions .pl-delete-attribute { color: var(--SmartThemeQuoteColor, #efa89c); }
+.st-plist .pl-row-actions button:is(:hover, :focus-visible) { background: var(--pl-surface); }

@@ -8,6 +8,7 @@ import { parameterSelection } from './plist-selection.js';
 import { defaults, getPresets } from './plist-presets.js';
 
 let refreshTool;
+let nextFieldId = 0;
 let nextParameterEdit = 0;
 const windowSizes = [70, 85, 95, 100];
 const defaultPrefixes = { character: "{{char}}'s ", persona: "{{user}}'s " };
@@ -34,11 +35,12 @@ function action(label, run) {
     const button = element('button', label);
     button.type = 'button';
     button.className = 'menu_button';
-    button.addEventListener('click', run);
+    if (run) button.addEventListener('click', run);
     return button;
 }
 
 const paths = {
+    expand: 'M14 4h6v6m0-6-7 7M10 20H4v-6m0 6 7-7',
     fold: 'm5 9 7 7 7-7',
     find: 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 1 1 16 0',
     add: 'M12 5v14M5 12h14',
@@ -94,6 +96,14 @@ function macroField() {
     return field;
 }
 
+function expandButton(field) {
+    field.id = 'stmt-plist-field-' + ++nextFieldId;
+    const button = iconButton('全屏编辑' + field.getAttribute('aria-label'), 'expand');
+    button.classList.add('editor_maximize');
+    button.dataset.for = field.id;
+    return button;
+}
+
 function wrapper(value) {
     if (/^"(?:\\[\s\S]|[^"\\])*"$/u.test(value)) return '"';
     if (/^“(?:\\[\s\S]|[^”\\])*”$/u.test(value)) return '”';
@@ -132,16 +142,19 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         measure.setAttribute('aria-hidden', 'true');
         const measureKey = () => { measure.textContent = key.value + ' '; };
         measureKey();
-        key.addEventListener('input', measureKey);
-        key.addEventListener('input', markNames);
-        key.addEventListener('input', () => changed?.('name-' + rows.indexOf(row)));
+        // ST writes fullscreen changes back with jQuery.trigger('input'), which calls oninput.
+        key.oninput = () => {
+            measureKey();
+            markNames();
+            changed?.('name-' + rows.indexOf(row));
+        };
         key.addEventListener('scroll', () => { measure.scrollTop = key.scrollTop; });
         keyBox.append(measure, key);
         const nameCell = box('pl-name-cell');
         const prefixTag = element('small', appliedPrefix);
         prefixTag.hidden = !appliedPrefix;
         nameCell.append(prefixTag);
-        nameCell.append(keyBox);
+        nameCell.append(keyBox, expandButton(key));
         const initialItems = (splitTraits(value) ?? [value]).map(x => x.trim()).filter(Boolean);
         const items = [...initialItems];
         const display = raw => quoteToggle?.checked ? unquote(raw) : raw;
@@ -196,7 +209,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 const text = rawInput();
                 return text === originalRaw ? undefined : { index, text, group };
             };
-            input.addEventListener('input', () => changed?.(group));
+            input.oninput = () => changed?.(group);
             const commit = () => {
                 let next = rawInput();
                 if (!next && editing) return invalid(input, '请输入参数，或点击删除图标。');
@@ -212,7 +225,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const commitFocus = () => {
                 if (commit()) chips.children[Math.min(index, items.length)].focus();
             };
-            drawer.replaceChildren(input, iconButton('确认参数', 'done', commitFocus));
+            drawer.replaceChildren(input, expandButton(input), iconButton('确认参数', 'done', commitFocus));
             if (editing) drawer.append(iconButton('删除参数', 'remove', () => {
                 items.splice(index, 1);
                 close();
@@ -279,9 +292,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const refreshQuotes = () => { paint(); refreshDrawer?.(); };
         quoteToggle?.addEventListener('change', refreshQuotes, { signal });
         const menu = box('pl-row-menu', 'details');
-        const trigger = element('summary', '…');
+        const trigger = element('summary');
         trigger.setAttribute('aria-label', '属性操作');
         trigger.title = '属性操作';
+        trigger.append(element('span', '•••'));
         const actions = box('pl-row-actions');
         if (prefix) {
             const togglePrefix = action(appliedPrefix ? '移除前缀' : '添加前缀', () => {
@@ -316,6 +330,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             line.remove();
             changed?.();
         });
+        remove.classList.add('pl-delete-attribute');
         actions.append(remove);
         line.append(nameCell, parameters, menu, drawer);
         list.append(line);
