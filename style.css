@@ -1652,3 +1652,27 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
     opacity: .92;
     box-shadow: 0 .25em .7em #0005;
 }
+.st-plist .pl-name-cell .pl-icon[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.st-plist .pl-row-menu { grid-area: 1 / 2; position: relative; }
+.st-plist .pl-row-menu summary {
+    list-style: none;
+    cursor: pointer;
+    padding: .15em .55em;
+    border: 1px solid var(--pl-line);
+    border-radius: 5px;
+}
+.st-plist .pl-row-menu summary::-webkit-details-marker { display: none; }
+.st-plist .pl-row-actions {
+    width: max-content;
+    min-width: 7em;
+    position: absolute;
+    inset-inline-end: 0;
+    z-index: 2;
+    display: grid;
+    gap: .25em;
+    padding: .35em;
+    background: var(--SmartThemeBlurTintColor, #282828);
+    border: 1px solid var(--pl-line);
+    border-radius: 6px;
+}
+.st-plist .pl-row-actions button { width: 100%; white-space: nowrap; }

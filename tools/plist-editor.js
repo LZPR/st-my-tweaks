@@ -39,6 +39,7 @@ function action(label, run) {
 }
 
 const paths = {
+    fold: 'm5 9 7 7 7-7',
     find: 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 1 1 16 0',
     add: 'M12 5v14M5 12h14',
     block: 'M14 3H5v16h7M9 8h7M9 12h4M18 13v8M14 17h8',
@@ -137,7 +138,9 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         key.addEventListener('scroll', () => { measure.scrollTop = key.scrollTop; });
         keyBox.append(measure, key);
         const nameCell = box('pl-name-cell');
-        if (appliedPrefix) nameCell.append(element('small', appliedPrefix));
+        const prefixTag = element('small', appliedPrefix);
+        prefixTag.hidden = !appliedPrefix;
+        nameCell.append(prefixTag);
         nameCell.append(keyBox);
         const initialItems = (splitTraits(value) ?? [value]).map(x => x.trim()).filter(Boolean);
         const items = [...initialItems];
@@ -146,13 +149,13 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const chips = box('pl-chips');
         const parameters = box('pl-parameters');
         const count = box('pl-count', 'small');
-        const fold = action('▾ 属性', () => {
+        const fold = iconButton('折叠参数', 'fold', () => {
             if (!drawer.hidden && !finish()) return;
             parameters.hidden = !parameters.hidden;
-            fold.textContent = parameters.hidden ? '▸ 属性' : '▾ 属性';
+            fold.title = parameters.hidden ? '展开参数' : '折叠参数';
+            fold.setAttribute('aria-label', fold.title);
             fold.setAttribute('aria-expanded', String(!parameters.hidden));
         });
-        fold.title = '展开或折叠参数';
         fold.setAttribute('aria-expanded', 'true');
         nameCell.prepend(fold);
         parameters.append(element('small', '参数'), chips, count);
@@ -275,7 +278,37 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         paint();
         const refreshQuotes = () => { paint(); refreshDrawer?.(); };
         quoteToggle?.addEventListener('change', refreshQuotes, { signal });
-        const remove = iconButton('删除属性', 'remove', () => {
+        const menu = box('pl-row-menu', 'details');
+        const trigger = element('summary', '…');
+        trigger.setAttribute('aria-label', '属性操作');
+        trigger.title = '属性操作';
+        const actions = box('pl-row-actions');
+        if (prefix) {
+            const togglePrefix = action(appliedPrefix ? '移除前缀' : '添加前缀', () => {
+                row.appliedPrefix = row.appliedPrefix ? '' : prefix;
+                prefixTag.textContent = row.appliedPrefix;
+                prefixTag.hidden = !row.appliedPrefix;
+                togglePrefix.textContent = row.appliedPrefix ? '移除前缀' : '添加前缀';
+                menu.open = false;
+                trigger.focus();
+                markNames();
+                changed?.();
+            });
+            actions.append(togglePrefix);
+        }
+        menu.append(trigger, actions);
+        menu.addEventListener('focusout', event => {
+            if (!menu.contains(event.relatedTarget)) menu.open = false;
+        });
+        menu.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && menu.open) {
+                event.preventDefault();
+                event.stopPropagation();
+                menu.open = false;
+                trigger.focus();
+            }
+        });
+        const remove = action('删除属性', () => {
             if (!drawer.hidden) pending = undefined;
             quoteToggle?.removeEventListener('change', refreshQuotes);
             rows.splice(rows.indexOf(row), 1);
@@ -283,7 +316,8 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             line.remove();
             changed?.();
         });
-        line.append(nameCell, parameters, remove, drawer);
+        actions.append(remove);
+        line.append(nameCell, parameters, menu, drawer);
         list.append(line);
         if (draft) inspect(draft.index, draft);
         return key;
@@ -339,13 +373,6 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     panel.dataset.windowSize = windowSize(config);
     const heading = box('pl-heading');
     const prefix = prefixFor(config, locationId);
-    const toggleLabel = box('pl-toggle', 'label');
-    const toggle = element('input');
-    toggle.type = 'checkbox';
-    toggle.checked = config.usePrefix !== false;
-    toggle.addEventListener('change', () => updateConfig({ usePrefix: toggle.checked }));
-    toggleLabel.title = prefix ? '新增属性前缀：' + prefix : '此区域的前缀为空，可在工具设置中修改';
-    toggleLabel.append(toggle, box('pl-check', 'span'), '添加前缀');
     const quoteLabel = box('pl-toggle', 'label');
     const quoteToggle = element('input');
     quoteToggle.type = 'checkbox';
@@ -381,7 +408,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     const title = box('pl-title');
     const total = box('pl-total', 'small');
     title.append(element('h3', 'PLists 编辑器'), total);
-    heading.append(title, toggleLabel, quoteLabel, navigation);
+    heading.append(title, quoteLabel, navigation);
     panel.append(heading);
     const sections = element('div');
     const findBar = box('pl-find');
@@ -516,8 +543,8 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         if (batch.hidden === on) {
             if (on) panel.closest('dialog')?.querySelector('.popup-controls')?.before(batch);
             batch.hidden = !on;
-            for (const el of [undo, redo, organize, newBlock, toggleLabel, quoteLabel,
-                ...sections.querySelectorAll('.pl-name-cell, .pl-icon, .pl-add-row')]) el.inert = on;
+            for (const el of [undo, redo, organize, newBlock, quoteLabel,
+                ...sections.querySelectorAll('.pl-name-cell, .pl-row-menu, .pl-icon, .pl-add-row')]) el.inert = on;
         }
         selectedCount.textContent = '已选 ' + selected.size + ' 项';
         removeSelected.disabled = storeSelected.disabled = selected.size === 0;
@@ -597,7 +624,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         findButton.hidden = on;
         sorting = on;
         organize.setAttribute('aria-pressed', String(on));
-        sections.hidden = pickerBox.hidden = newBlock.hidden = toggleLabel.hidden = on;
+        sections.hidden = pickerBox.hidden = newBlock.hidden = on;
         sortPanel.hidden = !on;
         if (on) paintSort();
         else sortPanel.replaceChildren();
@@ -640,7 +667,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         const section = box('pl-section');
         picker.append(new Option('片段 ' + (readers.length + 1)));
         const index = readers.length;
-        readers.push(rowList(section, rows, getPresets(getConfig()), prefix, () => toggle.checked, quoteToggle,
+        readers.push(rowList(section, rows, getPresets(getConfig()), prefix, () => config.usePrefix !== false, quoteToggle,
             group => record(group, index), listeners.signal));
         sections.append(section);
         show(readers.length - 1);
@@ -714,6 +741,13 @@ export const plistEditor = {
         canvas.append(sizeLabel, rowsLabel);
         const prefixSettings = element('details');
         prefixSettings.append(element('summary', '新增属性前缀'));
+        const automatic = element('input');
+        automatic.type = 'checkbox';
+        automatic.checked = config.usePrefix !== false;
+        automatic.addEventListener('change', () => { config.usePrefix = automatic.checked; });
+        const automaticLabel = element('label');
+        automaticLabel.append(automatic, ' 新增属性时自动添加前缀');
+        prefixSettings.append(automaticLabel);
         const prefixFields = [];
         for (const { id, label } of locations) {
             const field = element('label', label);
