@@ -287,6 +287,16 @@ export const expandedEditorShortcuts = {
     },
     start(_context, getConfig) {
         const mountToolbar = editor => addToolbar(editor, getConfig());
+        // Blurring on mousedown collapses the toolbar and moves Send before its click.
+        function keepFocusOnSend(event) {
+            if (event.button !== 0 || !event.target.closest?.('#send_but')) return;
+            const form = event.target.closest('#send_form');
+            if (form?.querySelector(`:scope > .${chatToolbarClass}`)
+                && form.querySelector(chatEditorSelector) === document.activeElement) {
+                event.preventDefault();
+            }
+        }
+        document.addEventListener('mousedown', keepFocusOnSend);
         const observer = new MutationObserver(records => {
             for (const { addedNodes } of records) {
                 for (const node of addedNodes) {
@@ -306,6 +316,7 @@ export const expandedEditorShortcuts = {
 
         return () => {
             observer.disconnect();
+            document.removeEventListener('mousedown', keepFocusOnSend);
             document.querySelectorAll(`.${toolbarClass}`).forEach(toolbar => toolbar.remove());
         };
     },
