@@ -1,7 +1,7 @@
 import { editorSelector, editorsChanged, getToolbar, isEnabled, locateEditor, locations, quickPromptSelector, renderLocations } from './prompt-toolbar.js';
 import { attributeName, findBlocks, maskMacros, splitTraits, writeBlocks } from './plist-format.js';
 import { sortView } from './plist-sort.js';
-import { openChoice } from './plist-choice.js';
+import { openAttributeWizard } from './plist-choice.js';
 import { highlightSection } from './plist-find.js';
 import { markDuplicate, repeated } from './plist-duplicates.js';
 import { parameterSelection } from './plist-selection.js';
@@ -75,13 +75,6 @@ function box(className, tag = 'div') {
     return node;
 }
 
-function choiceButton(title, labels, choose, allowCustom = false) {
-    const button = action(title, () => openChoice({ title, labels, choose, allowCustom }));
-    button.className = 'pl-choice-trigger';
-    button.setAttribute('aria-haspopup', 'dialog');
-    return button;
-}
-
 function invalid(input, message) {
     input.focus();
     toastr.error(message, 'PLists 编辑器');
@@ -120,6 +113,10 @@ function enclose(value, end) {
     return (end === '”' ? '“' : '"') + value.replaceAll('\\', '\\\\').replaceAll(end, '\\' + end) + end;
 }
 
+function traits(value) {
+    return (splitTraits(value) ?? [value]).map(item => item.trim()).filter(Boolean);
+}
+
 function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle, changed, signal) {
     const list = box('pl-rows');
     const rows = [];
@@ -155,7 +152,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         prefixTag.hidden = !appliedPrefix;
         nameCell.append(prefixTag);
         nameCell.append(keyBox, expandButton(key));
-        const initialItems = (splitTraits(value) ?? [value]).map(x => x.trim()).filter(Boolean);
+        const initialItems = traits(value);
         const items = [...initialItems];
         const display = raw => quoteToggle?.checked ? unquote(raw) : raw;
         let refreshDrawer;
@@ -176,6 +173,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         drawer.hidden = true;
         const row = { key, appliedPrefix, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
             ? value : items.join(', ') };
+        row.appendItems = additions => {
+            items.push(...additions);
+            paint();
+        };
         rows.push(row);
 
         function inspect(index, restoredDraft) {
@@ -234,25 +235,10 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             }));
             const cancel = () => { close(); changed?.(group); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
-            const renderChoices = () => {
-                drawer.querySelector('.pl-choice-trigger')?.remove();
-                if (editing) return;
-                const name = key.value.trim();
-                const preset = presets.find(p => p.name === name)
-                    ?? presets.find(p => prefix && prefix + p.name === name);
-                const choices = (splitTraits(preset?.value ?? '') ?? []).map(v => v.trim()).filter(v => v && !items.includes(v));
-                if (choices.length) drawer.append(choiceButton('选择常用参数', choices.map(display), i => {
-                    raw = choices[i];
-                    input.value = display(raw);
-                    commitFocus();
-                }));
-            };
-            renderChoices();
             refreshDrawer = () => {
                 raw = rawInput();
                 hidden = quoteToggle.checked;
                 input.value = display(raw);
-                renderChoices();
             };
             // ST consumes completion keys on the textarea. Handle remaining editing keys as they bubble.
             drawer.onkeydown = event => {
@@ -348,13 +334,45 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         add(row, matchesPrefix ? prefix : '');
     }
     markNames();
-    const addRow = choiceButton('添加属性', presets.map(p => p.name), (i, text) => {
-        if (finish()) {
-            add({ name: presets[i]?.name ?? text }, usePrefix() ? prefix : '').focus();
-            markNames();
-            changed?.();
+    const addRow = action('添加属性', () => {
+        if (!finish()) return;
+        const applied = usePrefix() ? prefix : '';
+        const attributes = new Map();
+        for (const row of rows) {
+            const name = attributeName(row.appliedPrefix, row.key.value);
+            if (name && !attributes.has(name)) {
+                attributes.set(name, { name, row, common: [], existing: traits(row.read()) });
+            }
         }
-    }, true);
+        for (const preset of presets) {
+            const full = attributeName(applied, preset.name);
+            const option = attributes.get(full) ?? attributes.get(preset.name)
+                ?? attributes.get(attributeName(prefix, preset.name))
+                ?? { name: preset.name, common: [] };
+            option.common.push(...traits(preset.value));
+            attributes.set(option.name, option);
+        }
+        openAttributeWizard([...attributes.values()], {
+            resolve: text => attributes.get(text) ?? attributes.get(attributeName(applied, text)),
+            unquote,
+            display: raw => quoteToggle?.checked ? unquote(raw) : raw,
+            save(option, additions) {
+                const name = attributeName(applied, option.name);
+                const target = option.row ?? attributes.get(name)?.row;
+                if (target) {
+                    const known = new Set(traits(target.read()).map(unquote));
+                    target.appendItems(additions.filter(raw => !known.has(unquote(raw))));
+                    target.key.focus();
+                } else {
+                    add({ name, value: additions.join(', ') }, applied).focus();
+                }
+                markNames();
+                changed?.();
+            },
+        });
+    });
+    addRow.className = 'pl-choice-trigger';
+    addRow.setAttribute('aria-haspopup', 'dialog');
     const foot = box('pl-add-row');
     foot.append(addRow);
     container.append(list, foot);

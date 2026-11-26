@@ -1693,3 +1693,9 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
 }
 .st-plist .pl-row-actions .pl-delete-attribute { color: var(--SmartThemeQuoteColor, #efa89c); }
 .st-plist .pl-row-actions button:is(:hover, :focus-visible) { background: var(--pl-surface); }
+.st-plist-choice footer { display: flex; justify-content: space-between; gap: .5em; }
+.st-plist-choice footer[hidden] { display: none; }
+.st-plist-choice .pl-existing { border-style: dashed; }
+.st-plist-choice .pl-existing small { display: block; opacity: .75; font-size: .72em; }
+.st-plist-choice button:disabled { opacity: .55; cursor: default; }
+.st-plist-choice button[aria-pressed="true"] { background: #91cbbb; color: #152821; }
