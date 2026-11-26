@@ -66,7 +66,7 @@ export function openAttributeWizard(attributes, { unquote, display, resolve, sav
         selected.clear();
         values.clear();
         present = new Set((option.existing ?? []).map(unquote));
-        for (const raw of [...option.common, ...(option.existing ?? [])]) {
+        for (const raw of option.common) {
             if (!values.has(unquote(raw))) values.set(unquote(raw), raw);
         }
         reset();

@@ -344,6 +344,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 attributes.set(name, { name, row, common: [], existing: traits(row.read()) });
             }
         }
+        const candidates = new Set();
         for (const preset of presets) {
             const full = attributeName(applied, preset.name);
             const option = attributes.get(full) ?? attributes.get(preset.name)
@@ -351,8 +352,9 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
                 ?? { name: preset.name, common: [] };
             option.common.push(...traits(preset.value));
             attributes.set(option.name, option);
+            candidates.add(option);
         }
-        openAttributeWizard([...attributes.values()], {
+        openAttributeWizard([...candidates], {
             resolve: text => attributes.get(text) ?? attributes.get(attributeName(applied, text)),
             unquote,
             display: raw => quoteToggle?.checked ? unquote(raw) : raw,
