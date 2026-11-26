@@ -346,7 +346,9 @@ dialog:has(.st-plist[data-window-size="100"]) { --pl-size: 100; }
 }
 
 .st-plist h3 { margin: 0; font-size: 1.17em; }
-.st-plist .pl-navigation { margin-inline-start: auto; max-width: 100%; flex-wrap: wrap; }
+.st-plist .pl-history { display: flex; gap: .3em; }
+.st-plist .pl-navigation { max-width: 100%; flex-wrap: nowrap; gap: .3em; margin-bottom: .75em; overflow-x: auto; }
+.st-plist .pl-history .pl-icon:disabled { opacity: .35; }
 .st-plist .pl-toggle {
     position: relative;
     display: inline-flex;

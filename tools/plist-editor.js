@@ -119,7 +119,7 @@ function traits(value) {
     return (splitTraits(value) ?? [value]).map(item => item.trim()).filter(Boolean);
 }
 
-function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle, changed, signal) {
+function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, hideQuotes = false, changed) {
     const list = box('pl-rows');
     const rows = [];
     function markNames() {
@@ -156,8 +156,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         nameCell.append(keyBox, expandButton(key));
         const initialItems = traits(value);
         const items = [...initialItems];
-        const display = raw => quoteToggle?.checked ? unquote(raw) : raw;
-        let refreshDrawer;
+        const display = raw => hideQuotes ? unquote(raw) : raw;
         const chips = box('pl-chips');
         const parameters = box('pl-parameters');
         const count = box('pl-count', 'small');
@@ -190,12 +189,11 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const editing = index < items.length;
             const input = macroField();
             let raw = editing ? items[index] : '';
-            let hidden = Boolean(quoteToggle?.checked);
             input.value = display(raw);
             function rawInput() {
-                const originalDisplay = hidden ? unquote(raw) : raw;
+                const originalDisplay = hideQuotes ? unquote(raw) : raw;
                 if (input.value === originalDisplay) return raw;
-                const end = hidden && wrapper(raw);
+                const end = hideQuotes && wrapper(raw);
                 return end ? enclose(input.value, end) : input.value.trim();
             }
             input.placeholder = '输入一个参数';
@@ -203,7 +201,6 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             const close = () => {
                 pending = undefined;
                 row.draft = undefined;
-                refreshDrawer = undefined;
                 drawer.hidden = true;
                 drawer.onkeydown = null;
                 drawer.replaceChildren();
@@ -240,11 +237,6 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             }));
             const cancel = () => { close(); changed?.(group); chips.children[index].focus(); };
             drawer.append(iconButton('取消参数编辑', 'close', cancel));
-            refreshDrawer = () => {
-                raw = rawInput();
-                hidden = quoteToggle.checked;
-                input.value = display(raw);
-            };
             // ST consumes completion keys on the textarea. Handle remaining editing keys as they bubble.
             drawer.onkeydown = event => {
                 if (event.target !== input || event.isComposing || event.defaultPrevented) return;
@@ -280,8 +272,6 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             chips.append(iconButton('添加参数', 'add', () => inspect()));
         }
         paint();
-        const refreshQuotes = () => { paint(); refreshDrawer?.(); };
-        quoteToggle?.addEventListener('change', refreshQuotes, { signal });
         const menu = box('pl-row-menu', 'details');
         const trigger = element('summary');
         trigger.setAttribute('aria-label', '属性操作');
@@ -315,7 +305,6 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         });
         const remove = action('删除属性', () => {
             if (!drawer.hidden) pending = undefined;
-            quoteToggle?.removeEventListener('change', refreshQuotes);
             rows.splice(rows.indexOf(row), 1);
             markNames();
             line.remove();
@@ -363,7 +352,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             displayName: name => prefix && name.startsWith(prefix) ? name.slice(prefix.length) || name : name,
             resolve: text => attributes.get(text) ?? attributes.get(attributeName(applied, text)),
             unquote,
-            display: raw => quoteToggle?.checked ? unquote(raw) : raw,
+            display: raw => hideQuotes ? unquote(raw) : raw,
             save(option, additions) {
                 const name = attributeName(applied, option.name);
                 const target = option.row ?? attributes.get(name)?.row;
@@ -417,12 +406,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     panel.dataset.windowSize = windowSize(config);
     const heading = box('pl-heading');
     const prefix = prefixFor(config, locationId);
-    const quoteLabel = box('pl-toggle', 'label');
-    const quoteToggle = element('input');
-    quoteToggle.type = 'checkbox';
-    quoteToggle.checked = config.hideQuotes === true;
-    quoteToggle.addEventListener('change', () => updateConfig({ hideQuotes: quoteToggle.checked }));
-    quoteLabel.append(quoteToggle, box('pl-check', 'span'), '隐藏引号');
+    const hideQuotes = config.hideQuotes === true;
     const picker = element('select');
     picker.setAttribute('aria-label', '切换片段');
     const navigation = box('pl-navigation');
@@ -449,17 +433,33 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         restore(state, Math.min(index, state.length - 1), origins);
         record(undefined, index);
     });
-    const foldAll = iconButton('折叠全部属性', 'collapse', () => readers[picker.selectedIndex].foldAll(true));
-    const expandAll = iconButton('展开全部属性', 'unfold', () => readers[picker.selectedIndex].foldAll(false));
+    const foldAll = iconButton('折叠全部属性', 'collapse', () => {
+        readers[picker.selectedIndex].foldAll(foldAll.getAttribute('aria-expanded') === 'true');
+        updateFoldButton();
+    });
+    function updateFoldButton() {
+        const section = sections.children[picker.selectedIndex];
+        const expanded = !!section?.querySelector('.pl-name-cell [aria-expanded="true"]');
+        foldAll.disabled = !readers[picker.selectedIndex]?.count;
+        foldAll.setAttribute('aria-expanded', String(expanded));
+        foldAll.title = expanded ? '折叠全部属性' : '展开全部属性';
+        foldAll.setAttribute('aria-label', foldAll.title);
+        foldAll.querySelector('path').setAttribute('d', expanded ? paths.collapse : paths.unfold);
+    }
     const findButton = iconButton('查找当前片段', 'find', () => toggleFind(findBar.hidden));
     findButton.setAttribute('aria-expanded', 'false');
-    navigation.append(findButton, undo, redo, organize, foldAll, expandAll, pickerBox, newBlock, deleteBlock);
+    navigation.append(findButton, organize, foldAll, pickerBox, newBlock, deleteBlock);
     const title = box('pl-title');
     const total = box('pl-total', 'small');
     title.append(element('h3', 'PLists 编辑器'), total);
-    heading.append(title, quoteLabel, navigation);
-    panel.append(heading);
+    const historyButtons = box('pl-history');
+    historyButtons.append(undo, redo);
+    heading.append(title, historyButtons);
+    panel.append(heading, navigation);
     const sections = element('div');
+    sections.addEventListener('click', event => {
+        if (event.target.closest('.pl-name-cell [aria-expanded]')) updateFoldButton();
+    });
     const findBar = box('pl-find');
     findBar.hidden = true;
     const query = element('input');
@@ -592,7 +592,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         if (batch.hidden === on) {
             if (on) panel.closest('dialog')?.querySelector('.popup-controls')?.before(batch);
             batch.hidden = !on;
-            for (const el of [undo, redo, organize, newBlock, deleteBlock, foldAll, expandAll, quoteLabel,
+            for (const el of [undo, redo, organize, newBlock, deleteBlock, foldAll,
                 ...sections.querySelectorAll('.pl-name-cell, .pl-row-menu, .pl-icon, .pl-add-row')]) el.inert = on;
         }
         selectedCount.textContent = '已选 ' + selected.size + ' 项';
@@ -615,6 +615,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     const history = [];
     let position = -1;
     function updateHeader() {
+        updateFoldButton();
         undo.disabled = position <= 0;
         redo.disabled = position >= history.length - 1;
         total.textContent = '共 ' + readers.reduce((sum, section) => sum + section.count, 0) + ' 个属性';
@@ -653,7 +654,6 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         return readers.map(section => section.snapshot());
     }
     function restore(state, index, origins = readers.map(section => section.origin)) {
-        readers.forEach(reader => reader.listeners.abort());
         sections.replaceChildren();
         picker.replaceChildren();
         readers.length = 0;
@@ -662,8 +662,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     }
     function paintSort() {
         const index = picker.selectedIndex;
-        sortPanel.replaceChildren(hint, sortView([readers[index].snapshot()], raw => quoteToggle.checked ? unquote(raw) : raw, ([sorted]) => {
-            readers[index].listeners.abort();
+        sortPanel.replaceChildren(hint, sortView([readers[index].snapshot()], raw => hideQuotes ? unquote(raw) : raw, ([sorted]) => {
             const section = sections.children[index];
             section.replaceChildren();
             readers[index] = buildReader(section, sorted, index, readers[index].origin);
@@ -676,15 +675,11 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
         findButton.hidden = on;
         sorting = on;
         organize.setAttribute('aria-pressed', String(on));
-        sections.hidden = pickerBox.hidden = newBlock.hidden = deleteBlock.hidden = foldAll.hidden = expandAll.hidden = on;
+        sections.hidden = pickerBox.hidden = newBlock.hidden = deleteBlock.hidden = foldAll.hidden = on;
         sortPanel.hidden = !on;
         if (on) paintSort();
         else sortPanel.replaceChildren();
     }
-    quoteToggle.addEventListener('change', () => {
-        if (sorting) paintSort();
-        else queueMicrotask(refreshFind);
-    });
     panel.addEventListener('keydown', event => {
         if (selection.active) {
             if (event.key === 'Escape') {
@@ -711,15 +706,15 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     });
     function show(index) {
         picker.selectedIndex = index;
+        updateFoldButton();
         Array.from(sections.children).forEach((node, i) => { node.hidden = i !== index; });
         refreshFind();
     }
     picker.addEventListener('change', () => show(picker.selectedIndex));
     function buildReader(section, rows, index, origin) {
-        const listeners = new AbortController();
         const reader = rowList(section, rows, getPresets(getConfig()), prefix, () => config.usePrefix !== false,
-            quoteToggle, group => record(group, index), listeners.signal);
-        return Object.assign(reader, { origin, listeners });
+            hideQuotes, group => record(group, index));
+        return Object.assign(reader, { origin });
     }
     function addBlock(rows, origin = null) {
         const section = box('pl-section');
@@ -797,7 +792,13 @@ export const plistEditor = {
             limit.value = String(maxRows(config));
         });
         rowsLabel.append(limit);
-        canvas.append(sizeLabel, rowsLabel);
+        const quoteLabel = element('label');
+        const quotes = element('input');
+        quotes.type = 'checkbox';
+        quotes.checked = config.hideQuotes === true;
+        quotes.addEventListener('change', () => { config.hideQuotes = quotes.checked; });
+        quoteLabel.append(quotes, ' 隐藏引号');
+        canvas.append(sizeLabel, rowsLabel, quoteLabel);
         const prefixSettings = element('details');
         prefixSettings.append(element('summary', '新增属性前缀'));
         const automatic = element('input');
