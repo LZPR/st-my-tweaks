@@ -84,6 +84,8 @@
 .st-phrases, .st-phrase-settings { border-top: 1px solid var(--phrase-line); padding-top: 12px; }
 .st-phrases-heading { justify-content: space-between; }
 .st-phrases-heading h4 { margin: 0; }
+.st-phrase-preset-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.st-phrase-presets button:disabled { opacity: .65; cursor: default; }
 .st-phrase-hint { opacity: 0.75; font-size: 0.85em; }
 .st-phrase-hint { display: block; margin: 4px 0 0; }
 .st-phrase-legend, .st-phrase-strip { display: flex; flex-wrap: wrap; align-items: center; }

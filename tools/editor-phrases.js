@@ -1,4 +1,4 @@
-import { getPhrases } from './editor-phrase-catalog.js';
+import { getPhrases, reactionPresets } from './editor-phrase-catalog.js';
 import { getToolbarScale } from './toolbar-scale.js';
 
 const positions = new Map([['both', '输入框和全屏'], ['chat', '仅输入框'], ['fullscreen', '仅全屏']]);
@@ -32,11 +32,42 @@ export function addPhraseSettings(canvas, config) {
     lists.setAttribute('role', 'group');
     lists.setAttribute('aria-label', '快捷短语');
     const settings = element('section', 'st-phrase-settings');
+    const presets = element('section', 'st-phrase-presets');
+    const presetHeading = element('div', 'st-phrases-heading');
+    const addAll = button('全部添加', 'st-phrase-action');
+    presetHeading.append(element('h4', '', '常用反应'), addAll);
+    const presetButtons = element('div', 'st-phrase-preset-buttons');
+    presets.append(presetHeading, presetButtons);
     section.append(header, element('small', 'st-phrase-hint', '点选按钮设置短语，拖动可排序。虚线按钮已隐藏。'), legend, lists);
-    canvas.append(section, settings);
+    canvas.append(section, presets, settings);
 
     let selected = phrases[0];
     const chips = new Map();
+
+    function addPresets(templates) {
+        const additions = templates.filter(preset => !phrases.some(item => item.presetId === preset.id))
+            .map(preset => ({ presetId: preset.id, name: preset.name, texts: [...preset.texts], position: 'both' }));
+        if (!additions.length) return;
+        phrases.push(...additions);
+        select(additions[0]);
+    }
+
+    addAll.onclick = () => addPresets(reactionPresets);
+    for (const preset of reactionPresets) {
+        const addPreset = button('＋ ' + preset.name, 'st-phrase-action');
+        addPreset.onclick = () => addPresets([preset]);
+        presetButtons.append(addPreset);
+    }
+
+    function updatePresets() {
+        const added = new Set(phrases.map(phrase => phrase.presetId));
+        reactionPresets.forEach((preset, index) => {
+            const control = presetButtons.children[index];
+            control.disabled = added.has(preset.id);
+            control.textContent = (control.disabled ? '✓ ' : '＋ ') + preset.name;
+        });
+        addAll.disabled = reactionPresets.every(preset => added.has(preset.id));
+    }
 
     function move(phrase, before) {
         if (before === phrase) return;
@@ -116,6 +147,7 @@ export function addPhraseSettings(canvas, config) {
 
     function select(phrase) {
         selected = phrase;
+        updatePresets();
         drawLists();
         settings.replaceChildren();
         const heading = element('div', 'st-phrases-heading');
