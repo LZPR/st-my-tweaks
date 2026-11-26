@@ -1617,3 +1617,38 @@ dialog.stmt-rp[open] { display: flex; flex-direction: column; }
     .stmt-scene aside { flex: none; overflow: visible; padding: 12px; border-left: 0; border-top: 1px solid var(--pose-line); }
     .stmt-scene aside section { margin-bottom: 12px; }
 }
+
+.st-plist .pl-row, .st-plist .pl-sort-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .45em;
+    padding: .65em;
+    margin-block: .5em;
+    border: 1px solid var(--pl-line);
+    border-inline-start: 3px solid var(--pl-accent);
+    border-radius: 7px;
+}
+.st-plist .pl-name-cell { display: flex; align-items: start; flex-wrap: wrap; gap: .4em; }
+.st-plist .pl-name-cell button { white-space: nowrap; }
+.st-plist .pl-name-cell .pl-key { flex: 1 1 8em; }
+.st-plist .pl-row > .pl-icon { grid-area: 1 / 2; }
+.st-plist .pl-parameters, .st-plist .pl-sort-values {
+    grid-column: 1 / -1;
+    margin-inline-start: .8em;
+    padding-inline-start: .65em;
+    border-inline-start: 2px solid var(--pl-line);
+}
+.st-plist .pl-key > *, .st-plist .pl-drawer textarea {
+    max-height: calc(var(--pl-max-rows, 6) * 1lh + .64em + 2px);
+}
+.st-plist .pl-key > span { overflow: hidden; }
+.st-plist .pl-key > textarea, .st-plist .pl-drawer textarea { overflow-y: auto; }
+.st-plist .pl-drawer textarea { field-sizing: content; height: auto; line-height: 1.4; resize: none; }
+.st-plist .pl-sort .pl-drag-folded .pl-sort-values { display: none; }
+.st-plist .pl-sort .pl-drag-preview {
+    position: fixed;
+    inset: 0 auto auto 0;
+    z-index: 10;
+    pointer-events: none;
+    opacity: .92;
+    box-shadow: 0 .25em .7em #0005;
+}

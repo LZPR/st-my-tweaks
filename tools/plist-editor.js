@@ -16,6 +16,10 @@ function prefixFor(config, locationId) {
     return config.prefixes?.[locationId] ?? defaultPrefixes[locationId] ?? '';
 }
 
+function maxRows(config) {
+    return Number.isSafeInteger(config.maxRows) && config.maxRows > 0 ? config.maxRows : 6;
+}
+
 function windowSize(config) {
     return windowSizes.includes(config.windowSize) ? config.windowSize : 95;
 }
@@ -106,8 +110,6 @@ function enclose(value, end) {
 }
 
 function rowList(container, initial, presets = [], prefix = '', usePrefix = () => false, quoteToggle, changed, signal) {
-    const header = box('pl-columns');
-    header.append(element('span', '属性'), element('span', '参数'));
     const list = box('pl-rows');
     const rows = [];
     function markNames() {
@@ -132,6 +134,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         key.addEventListener('input', measureKey);
         key.addEventListener('input', markNames);
         key.addEventListener('input', () => changed?.('name-' + rows.indexOf(row)));
+        key.addEventListener('scroll', () => { measure.scrollTop = key.scrollTop; });
         keyBox.append(measure, key);
         const nameCell = box('pl-name-cell');
         if (appliedPrefix) nameCell.append(element('small', appliedPrefix));
@@ -143,7 +146,16 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
         const chips = box('pl-chips');
         const parameters = box('pl-parameters');
         const count = box('pl-count', 'small');
-        parameters.append(chips, count);
+        const fold = action('▾ 属性', () => {
+            if (!drawer.hidden && !finish()) return;
+            parameters.hidden = !parameters.hidden;
+            fold.textContent = parameters.hidden ? '▸ 属性' : '▾ 属性';
+            fold.setAttribute('aria-expanded', String(!parameters.hidden));
+        });
+        fold.title = '展开或折叠参数';
+        fold.setAttribute('aria-expanded', 'true');
+        nameCell.prepend(fold);
+        parameters.append(element('small', '参数'), chips, count);
         const drawer = box('pl-drawer');
         drawer.hidden = true;
         const row = { key, appliedPrefix, read: () => items.length === initialItems.length && items.every((v, i) => v === initialItems[i])
@@ -296,7 +308,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
     }, true);
     const foot = box('pl-add-row');
     foot.append(addRow);
-    container.append(header, list, foot);
+    container.append(list, foot);
     function read() {
         if (!finish()) return null;
         const result = [];
@@ -323,6 +335,7 @@ async function edit(context, editor, source, locationId, getConfig, updateConfig
     const sourceValue = source.value;
     const blocks = findBlocks(original);
     const panel = box('st-plist');
+    panel.style.setProperty('--pl-max-rows', maxRows(config));
     panel.dataset.windowSize = windowSize(config);
     const heading = box('pl-heading');
     const prefix = prefixFor(config, locationId);
@@ -687,7 +700,18 @@ export const plistEditor = {
         size.value = String(windowSize(config));
         size.addEventListener('change', () => { config.windowSize = Number(size.value); });
         sizeLabel.append(size);
-        canvas.append(sizeLabel);
+        const rowsLabel = element('label', '编辑框上限行数 ');
+        const limit = element('input');
+        limit.type = 'number';
+        limit.min = '1';
+        limit.value = String(maxRows(config));
+        limit.addEventListener('change', () => {
+            if (limit.validity.valid && Number.isSafeInteger(limit.valueAsNumber))
+                config.maxRows = limit.valueAsNumber;
+            limit.value = String(maxRows(config));
+        });
+        rowsLabel.append(limit);
+        canvas.append(sizeLabel, rowsLabel);
         const prefixSettings = element('details');
         prefixSettings.append(element('summary', '新增属性前缀'));
         const prefixFields = [];

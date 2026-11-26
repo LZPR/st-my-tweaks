@@ -141,10 +141,21 @@ export function sortView(blocks, display, move, unquote) {
             if (Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < 5) return;
             select(pointer.el);
             pointer.dragging = true;
+            const rect = pointer.el.getBoundingClientRect();
+            pointer.ghost = pointer.el.cloneNode(true);
+            pointer.ghost.classList.add('pl-drag-preview');
+            pointer.ghost.inert = true;
+            pointer.ghost.style.width = rect.width + 'px';
+            pointer.offsetX = pointer.x - rect.left;
+            pointer.offsetY = pointer.y - rect.top;
+            view.append(pointer.ghost);
+            if (positions.get(pointer.el).item === undefined)
+                pointer.el.parentElement.classList.add('pl-drag-folded');
             frame = requestAnimationFrame(scroll);
         }
         pointer.x = event.clientX;
         pointer.y = event.clientY;
+        pointer.ghost.style.transform = 'translate3d(' + (pointer.x - pointer.offsetX) + 'px, ' + (pointer.y - pointer.offsetY) + 'px, 0)';
         hover();
     });
     let skipClick = false;
@@ -155,13 +166,17 @@ export function sortView(blocks, display, move, unquote) {
             drop(destination(document.elementFromPoint(event.clientX, event.clientY), event.clientX, event.clientY));
             setTimeout(() => { skipClick = false; }, 0);
         }
+        endDrag();
+    });
+    function endDrag() {
+        pointer?.ghost?.remove();
+        pointer?.el.parentElement?.classList.remove('pl-drag-folded');
         pointer = undefined;
         cancelAnimationFrame(frame);
-    });
+    }
     view.addEventListener('lostpointercapture', () => {
         if (pointer?.dragging) select(null);
-        pointer = undefined;
-        cancelAnimationFrame(frame);
+        endDrag();
     });
     view.addEventListener('click', event => {
         if (skipClick) return;
@@ -175,6 +190,7 @@ export function sortView(blocks, display, move, unquote) {
         if (event.key === 'Escape' && selected) {
             event.preventDefault();
             event.stopPropagation();
+            endDrag();
             select(null);
         }
     });
