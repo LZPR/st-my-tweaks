@@ -355,6 +355,7 @@ function rowList(container, initial, presets = [], prefix = '', usePrefix = () =
             candidates.add(option);
         }
         openAttributeWizard([...candidates], {
+            displayName: name => prefix && name.startsWith(prefix) ? name.slice(prefix.length) || name : name,
             resolve: text => attributes.get(text) ?? attributes.get(attributeName(applied, text)),
             unquote,
             display: raw => quoteToggle?.checked ? unquote(raw) : raw,

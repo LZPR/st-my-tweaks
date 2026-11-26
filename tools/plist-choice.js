@@ -8,7 +8,7 @@ function button(label, click) {
     return el;
 }
 
-export function openAttributeWizard(attributes, { unquote, display, resolve, save }) {
+export function openAttributeWizard(attributes, { unquote, display, displayName, resolve, save }) {
     const dialog = document.createElement('dialog');
     dialog.className = 'st-plist-choice';
     const header = document.createElement('header');
@@ -74,7 +74,7 @@ export function openAttributeWizard(attributes, { unquote, display, resolve, sav
     function reset() {
         search.value = '';
         search.setCustomValidity('');
-        heading.textContent = attribute ? '选择参数 · ' + attribute.name : '选择属性';
+        heading.textContent = attribute ? '选择参数 · ' + displayName(attribute.name) : '选择属性';
         dialog.setAttribute('aria-label', heading.textContent);
         search.placeholder = attribute ? '搜索或输入自定义参数' : '搜索或输入属性名称';
         search.setAttribute('aria-label', search.placeholder);
@@ -114,11 +114,12 @@ export function openAttributeWizard(attributes, { unquote, display, resolve, sav
             updateConfirm();
         } else {
             for (const option of attributes) {
-                if (option.name.toLocaleLowerCase().includes(query))
-                    tile(option.name, !!option.existing, () => choose(option));
+                const label = displayName(option.name);
+                if (label.toLocaleLowerCase().includes(query))
+                    tile(label, !!option.existing, () => choose(option));
             }
-            custom.hidden = !text || attributes.some(option => option.name === text);
-            custom.textContent = (resolve(text)?.existing ? '选择已有属性「' : '使用属性名「') + text + '」';
+            custom.hidden = !text || attributes.some(option => displayName(option.name) === text || option.name === text);
+            custom.textContent = (resolve(text)?.existing ? '选择已有属性「' : '使用属性名「') + displayName(text) + '」';
         }
     }
     function updateConfirm() {
